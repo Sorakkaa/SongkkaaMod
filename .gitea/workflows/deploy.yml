@@ -20,7 +20,7 @@ jobs:
         run: docker stop songkkaa-backend || true && docker rm songkkaa-backend || true
         
       - name: Deploy new version
-        run: docker run -d --name songkkaa-backend --network songkkaa_network --network nginx-expose --restart unless-stopped -v /opt/songkkaa/data.json:/app/ $IMAGENAME
+        run: docker run -d --name songkkaa-backend --network songkkaa_network --network nginx-expose --restart unless-stopped -v /opt/songkkaa/:/app/ $IMAGENAME
         
       - name: Finished!
         run: echo "🍏 This job's status is ${{ job.status }}."
