@@ -23,6 +23,7 @@ public class ModConfig {
 	public boolean enableGc = true; // /gc ou /g (Guild Chat)
 	public boolean enablePc = true; // /pc ou /p (Party Chat)
 	public boolean enableSong = true; // commande !song activée
+	public boolean enableMeow = true; // commande !meow activée
 	public boolean enableNameColor = true; // couleur du pseudo activée
 	public boolean boldName = true; // pseudo toujours en gras pour les noms colorés
 	public int nameColorIndex = 0; // index de la couleur sélectionnée (0=None, 1=Arc-en-ciel, 2=Custom Hex, etc.)

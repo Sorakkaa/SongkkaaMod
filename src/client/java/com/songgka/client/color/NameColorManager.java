@@ -435,6 +435,9 @@ public class NameColorManager {
                             // Strip only trailing \u00A7X color/format codes right before the name
                             String cleanBefore = before.replaceAll("(\u00A7[0-9a-fA-Fk-rK-R])+$", "");
                             String after = text.substring(idx + name.length());
+                            if (isSorakkaa && !after.toLowerCase().startsWith(" the mistress")) {
+                                originalCaseName = originalCaseName + " the Mistress";
+                            }
 
                             String normHex = normalizeHex(colorCode);
                             String finalBefore = cleanBefore;
@@ -462,7 +465,7 @@ public class NameColorManager {
                                     builder.append(net.minecraft.network.chat.Component.literal(charStr).withStyle(st));
                                 }
                                 if (!finalAfter.isEmpty()) builder.append(net.minecraft.network.chat.Component.literal(finalAfter));
-                                newSelf = builder;
+                                newSelf = builder.withStyle(component.getStyle());
                             } else if (normHex != null) {
                                 try {
                                     int hexInt = Integer.parseInt(normHex.substring(1), 16);
@@ -477,7 +480,7 @@ public class NameColorManager {
                                     String nameStr = originalCaseName.replaceAll("\u00A7[lLoO]", "");
                                     builder.append(net.minecraft.network.chat.Component.literal(nameStr).withStyle(st));
                                     if (!finalAfter.isEmpty()) builder.append(net.minecraft.network.chat.Component.literal(finalAfter));
-                                    newSelf = builder;
+                                    newSelf = builder.withStyle(component.getStyle());
                                 } catch (Exception ignored) {}
                             } else {
                                 net.minecraft.ChatFormatting fmt = net.minecraft.ChatFormatting.getByCode(colorCode.length() > 1 ? colorCode.charAt(1) : 'r');
@@ -493,7 +496,7 @@ public class NameColorManager {
                                     String nameStr = originalCaseName.replaceAll("\u00A7[lLoO]", "");
                                     builder.append(net.minecraft.network.chat.Component.literal(nameStr).withStyle(st));
                                     if (!finalAfter.isEmpty()) builder.append(net.minecraft.network.chat.Component.literal(finalAfter));
-                                    newSelf = builder;
+                                    newSelf = builder.withStyle(component.getStyle());
                                 }
                             }
                             break;

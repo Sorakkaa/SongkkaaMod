@@ -83,7 +83,7 @@ public class SonggkaConfigScreen extends Screen {
         // Hauteur dynamique
         int rows   = partyCmdExpanded ? 3 : 0;              // All/Guild/Party Chat
         int subCat = partyCmdExpanded ? 1 : 0;              // "Commands" header
-        int cmds   = (partyCmdExpanded && cmdExpanded) ? 1 : 0; // song
+        int cmds   = (partyCmdExpanded && cmdExpanded) ? 2 : 0; // song, meow
         int totalH = HEADER_H + CAT_H + rows * ROW_H + subCat * SUBCAT_H + cmds * SUBCMD_H + 2;
 
         g.fill(px, py, px + PANEL_W, py + totalH, COL_BG);
@@ -143,6 +143,21 @@ public class SonggkaConfigScreen extends Screen {
             g.fill(pillX, pillY, pillX + pillW, pillY + 1, 0x40FFFFFF);
             int knobX = songOn ? pillX + pillW - pillH : pillX;
             g.fill(knobX, pillY, knobX + pillH, pillY + pillH, 0xFFFFFFFF);
+
+            // Toggle meow
+            int cmdY2 = cmdY + SUBCMD_H;
+            if (mx >= px && mx < px + PANEL_W && my >= cmdY2 && my < cmdY2 + SUBCMD_H)
+                g.fill(px, cmdY2, px + PANEL_W, cmdY2 + SUBCMD_H, COL_HOVER);
+            g.fill(px, cmdY2 + SUBCMD_H - 1, px + PANEL_W, cmdY2 + SUBCMD_H, COL_SEP);
+            g.fill(px + INDENT_2, cmdY2 + SUBCMD_H / 2,
+                    px + INDENT_2 + 4, cmdY2 + SUBCMD_H / 2 + 1, 0x60BB55FF);
+            g.text(font, "meow", px + INDENT_2 + 7, cmdY2 + 2, COL_CMD);
+            boolean meowOn = ModConfig.INSTANCE.enableMeow;
+            int pillY2 = cmdY2 + (SUBCMD_H - pillH) / 2;
+            g.fill(pillX, pillY2, pillX + pillW, pillY2 + pillH, meowOn ? COL_ON : COL_OFF);
+            g.fill(pillX, pillY2, pillX + pillW, pillY2 + 1, 0x40FFFFFF);
+            int knobX2 = meowOn ? pillX + pillW - pillH : pillX;
+            g.fill(knobX2, pillY2, knobX2 + pillH, pillY2 + pillH, 0xFFFFFFFF);
         }
 
         g.fill(px, py + totalH - 1, px + PANEL_W, py + totalH, 0x40BB55FF);
@@ -504,6 +519,12 @@ public class SonggkaConfigScreen extends Screen {
                     int cmdY = subY + SUBCMD_H;
                     if (my >= cmdY && my < cmdY + SUBCMD_H) {
                         ModConfig.INSTANCE.enableSong = !ModConfig.INSTANCE.enableSong;
+                        ModConfig.INSTANCE.save();
+                        return true;
+                    }
+                    int cmdY2 = cmdY + SUBCMD_H;
+                    if (my >= cmdY2 && my < cmdY2 + SUBCMD_H) {
+                        ModConfig.INSTANCE.enableMeow = !ModConfig.INSTANCE.enableMeow;
                         ModConfig.INSTANCE.save();
                         return true;
                     }

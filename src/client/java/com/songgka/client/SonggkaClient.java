@@ -50,7 +50,7 @@ public class SonggkaClient implements ClientModInitializer {
 			if (!ModConfig.INSTANCE.enableSong) return;
 			if (!ModConfig.INSTANCE.enableAc) return;
 			if (message != null && message.trim().toLowerCase().contains("!song")) {
-				fetchAndSendSongWithDelay(null);
+				fetchAndSendSongWithDelay("/ac ");
 			}
 		});
 
@@ -91,11 +91,70 @@ public class SonggkaClient implements ClientModInitializer {
 				} else {
 					// Public / All Chat
 					if (ModConfig.INSTANCE.enableAc) {
-						fetchAndSendSongWithDelay(null);
+						fetchAndSendSongWithDelay("/ac ");
 					}
+				}
+			} else if (lower.contains("!meow") && ModConfig.INSTANCE.enableMeow) {
+				String name = null;
+				int meowIdx = text.toLowerCase().indexOf("!meow");
+				if (meowIdx != -1 && text.length() > meowIdx + 5) {
+					String afterMeow = text.substring(meowIdx + 5).replaceAll("(?i)\\u00A7[0-9a-fk-or]", "").trim();
+					if (!afterMeow.isEmpty()) {
+						String[] words = afterMeow.split("\\s+");
+						String arg = words[0];
+						if (arg.matches("^[a-zA-Z0-9_]{3,16}$")) {
+							name = arg;
+						}
+					}
+				}
+				if (name == null || name.isEmpty()) {
+					name = extractNameFromChat(text);
+				}
+				if (name == null) {
+					Minecraft mc = Minecraft.getInstance();
+					name = mc.player != null ? mc.player.getScoreboardName() : "Someone";
+				}
+				int randomPercent = new java.util.Random().nextInt(101);
+				String msg = name + " is " + randomPercent + "% kitty cat";
+
+				boolean isParty = lower.contains("party") || lower.contains("p >") || lower.contains("[party]");
+				boolean isGuild = lower.contains("guild") || lower.contains("officer") || lower.contains("g >") || lower.contains("o >") || lower.contains("[guild]");
+
+				if (isParty) {
+					if (ModConfig.INSTANCE.enablePc) sendServerChatMessage("/pc ", msg);
+				} else if (isGuild) {
+					if (ModConfig.INSTANCE.enableGc) sendServerChatMessage("/gc ", msg);
+				} else {
+					if (ModConfig.INSTANCE.enableAc) sendServerChatMessage("/ac ", msg);
 				}
 			}
 		});
+
+		ClientSendMessageEvents.MODIFY_CHAT.register((message) -> {
+			if (message == null) return message;
+			return message.replaceAll("(?i)Sorakkaa(?!\\sthe\\sMistress)", "Sorakkaa the Mistress");
+		});
+	}
+
+	private static String extractNameFromChat(String text) {
+		int colonIdx = text.indexOf(':');
+		if (colonIdx == -1) return null;
+		String beforeColon = text.substring(0, colonIdx);
+		beforeColon = beforeColon.replaceAll("(?i)\\u00A7[0-9a-fk-or]", "");
+		String noBrackets = beforeColon.replaceAll("\\[.*?\\]", "").trim();
+		String[] words = noBrackets.split("\\s+");
+		if (words.length > 0) {
+			String lastWord = words[words.length - 1];
+			if (lastWord.equalsIgnoreCase("Mistress") && words.length > 1) {
+				String secondLast = words[words.length - 2];
+				if (secondLast.equalsIgnoreCase("the") && words.length > 2) {
+					return words[words.length - 3];
+				}
+				return secondLast;
+			}
+			return lastWord;
+		}
+		return null;
 	}
 
 	public static void handleOutgoingChatMessage(String message) {
