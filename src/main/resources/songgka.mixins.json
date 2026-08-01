@@ -1,0 +1,15 @@
+{
+	"required": true,
+	"package": "com.songgka.client.mixin",
+	"compatibilityLevel": "JAVA_17",
+	"mixins": [
+		"EntityRendererMixin",
+		"ClientPlayNetworkHandlerMixin",
+		"PlayerRendererMixin",
+		"AvatarRenderStateMixin",
+		"TitleScreenMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}

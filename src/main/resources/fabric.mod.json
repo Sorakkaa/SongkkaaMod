@@ -1,0 +1,31 @@
+{
+	"schemaVersion": 1,
+	"id": "songgka",
+	"version": "${version}",
+	"name": "Songgka Mod",
+	"description": "Mod pour afficher la musique dans le chat !",
+	"authors": [
+		"Sorakkaa"
+	],
+	"contact": {
+		"homepage": "https://fabricmc.net/",
+		"sources": "https://github.com/FabricMC/fabric-example-mod"
+	},
+	"license": "CC0-1.0",
+	"icon": "assets/songgka/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"client": [
+			"com.songgka.client.SonggkaClient"
+		]
+	},
+	"mixins": [
+		"songgka.mixins.json"
+	],
+	"depends": {
+		"fabricloader": ">=0.19.3",
+		"minecraft": "~26.1.2",
+		"java": ">=25",
+		"fabric-api": "*"
+	}
+}
