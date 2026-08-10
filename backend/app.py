@@ -35,7 +35,21 @@ def update_colors():
         data = request.get_json()
         if data is None:
             return jsonify({"error": "Invalid JSON"}), 400
-        save_data(data)
+        
+        if "uuid" in data and "data" in data and len(data) <= 3:
+            uuid = data["uuid"]
+            user_data = data["data"]
+            username = user_data.get("username", "").lower()
+            
+            db = load_data()
+            db[uuid] = user_data
+   
+            if username:
+                db[username] = user_data
+            save_data(db)
+        else:
+            return jsonify({"error": "Update your mod to the latest version for security reasons."}), 400
+
         return jsonify({"status": "success"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500

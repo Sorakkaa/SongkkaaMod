@@ -51,6 +51,8 @@ public class SonggkaConfigScreen extends Screen {
     private float selectedHue = 0.0f;
     
     private boolean sizeConfigExpanded = false;
+    private boolean ghostBlocksExpanded = false;
+    private boolean ghostBlockDropdownOpen = false;
     private int draggingSlider = -1; // 0=X, 1=Y, 2=Z
 
     private int commandeX, miscX;
@@ -71,7 +73,9 @@ public class SonggkaConfigScreen extends Screen {
     @Override
     public void extractRenderState(GuiGraphicsExtractor g, int mx, int my, float pt) {
         super.extractRenderState(g, mx, my, pt);
+        
         g.fill(0, 0, this.width, this.height, 0x50000000);
+
         renderCommandePanel(g, commandeX, START_Y, mx, my);
         renderMiscPanel    (g, miscX,     START_Y, mx, my);
     }
@@ -83,7 +87,7 @@ public class SonggkaConfigScreen extends Screen {
         // Hauteur dynamique
         int rows   = partyCmdExpanded ? 3 : 0;              // All/Guild/Party Chat
         int subCat = partyCmdExpanded ? 1 : 0;              // "Commands" header
-        int cmds   = (partyCmdExpanded && cmdExpanded) ? 2 : 0; // song, meow
+        int cmds   = (partyCmdExpanded && cmdExpanded) ? 10 : 0; // song, meow, wanted, kiss, feed, poke, pat, hug, sus, rizz
         int totalH = HEADER_H + CAT_H + rows * ROW_H + subCat * SUBCAT_H + cmds * SUBCMD_H + 2;
 
         g.fill(px, py, px + PANEL_W, py + totalH, COL_BG);
@@ -128,36 +132,32 @@ public class SonggkaConfigScreen extends Screen {
         // ── Commandes (si "Commands" déplié) ──
         if (cmdExpanded) {
             int cmdY = subY + SUBCAT_H;
-            if (mx >= px && mx < px + PANEL_W && my >= cmdY && my < cmdY + SUBCMD_H)
-                g.fill(px, cmdY, px + PANEL_W, cmdY + SUBCMD_H, COL_HOVER);
-            g.fill(px, cmdY + SUBCMD_H - 1, px + PANEL_W, cmdY + SUBCMD_H, COL_SEP);
-            g.fill(px + INDENT_2, cmdY + SUBCMD_H / 2,
-                    px + INDENT_2 + 4, cmdY + SUBCMD_H / 2 + 1, 0x60BB55FF);
-            g.text(font, "song", px + INDENT_2 + 7, cmdY + 2, COL_CMD);
-            // Toggle pill
-            boolean songOn = ModConfig.INSTANCE.enableSong;
-            int pillW = 20, pillH = 7;
-            int pillX = px + PANEL_W - pillW - 5;
-            int pillY = cmdY + (SUBCMD_H - pillH) / 2;
-            g.fill(pillX, pillY, pillX + pillW, pillY + pillH, songOn ? COL_ON : COL_OFF);
-            g.fill(pillX, pillY, pillX + pillW, pillY + 1, 0x40FFFFFF);
-            int knobX = songOn ? pillX + pillW - pillH : pillX;
-            g.fill(knobX, pillY, knobX + pillH, pillY + pillH, 0xFFFFFFFF);
-
-            // Toggle meow
-            int cmdY2 = cmdY + SUBCMD_H;
-            if (mx >= px && mx < px + PANEL_W && my >= cmdY2 && my < cmdY2 + SUBCMD_H)
-                g.fill(px, cmdY2, px + PANEL_W, cmdY2 + SUBCMD_H, COL_HOVER);
-            g.fill(px, cmdY2 + SUBCMD_H - 1, px + PANEL_W, cmdY2 + SUBCMD_H, COL_SEP);
-            g.fill(px + INDENT_2, cmdY2 + SUBCMD_H / 2,
-                    px + INDENT_2 + 4, cmdY2 + SUBCMD_H / 2 + 1, 0x60BB55FF);
-            g.text(font, "meow", px + INDENT_2 + 7, cmdY2 + 2, COL_CMD);
-            boolean meowOn = ModConfig.INSTANCE.enableMeow;
-            int pillY2 = cmdY2 + (SUBCMD_H - pillH) / 2;
-            g.fill(pillX, pillY2, pillX + pillW, pillY2 + pillH, meowOn ? COL_ON : COL_OFF);
-            g.fill(pillX, pillY2, pillX + pillW, pillY2 + 1, 0x40FFFFFF);
-            int knobX2 = meowOn ? pillX + pillW - pillH : pillX;
-            g.fill(knobX2, pillY2, knobX2 + pillH, pillY2 + pillH, 0xFFFFFFFF);
+            String[] cmdNames = {"song", "meow", "wanted", "kiss", "feed", "poke", "pat", "hug", "sus", "rizz"};
+            boolean[] cmdStates = {
+                ModConfig.INSTANCE.enableSong, ModConfig.INSTANCE.enableMeow,
+                ModConfig.INSTANCE.enableWanted, ModConfig.INSTANCE.enableKiss,
+                ModConfig.INSTANCE.enableFeed, ModConfig.INSTANCE.enablePoke,
+                ModConfig.INSTANCE.enablePat, ModConfig.INSTANCE.enableHug,
+                ModConfig.INSTANCE.enableSus, ModConfig.INSTANCE.enableRizz
+            };
+            
+            for (int i = 0; i < cmdNames.length; i++) {
+                int cY = cmdY + i * SUBCMD_H;
+                if (mx >= px && mx < px + PANEL_W && my >= cY && my < cY + SUBCMD_H)
+                    g.fill(px, cY, px + PANEL_W, cY + SUBCMD_H, COL_HOVER);
+                g.fill(px, cY + SUBCMD_H - 1, px + PANEL_W, cY + SUBCMD_H, COL_SEP);
+                g.fill(px + INDENT_2, cY + SUBCMD_H / 2, px + INDENT_2 + 4, cY + SUBCMD_H / 2 + 1, 0x60BB55FF);
+                g.text(font, cmdNames[i], px + INDENT_2 + 7, cY + 2, COL_CMD);
+                
+                boolean isOn = cmdStates[i];
+                int pillW = 20, pillH = 7;
+                int pillX = px + PANEL_W - pillW - 5;
+                int pillY = cY + (SUBCMD_H - pillH) / 2;
+                g.fill(pillX, pillY, pillX + pillW, pillY + pillH, isOn ? COL_ON : COL_OFF);
+                g.fill(pillX, pillY, pillX + pillW, pillY + 1, 0x40FFFFFF);
+                int knobX = isOn ? pillX + pillW - pillH : pillX;
+                g.fill(knobX, pillY, knobX + pillH, pillY + pillH, 0xFFFFFFFF);
+            }
         }
 
         g.fill(px, py + totalH - 1, px + PANEL_W, py + totalH, 0x40BB55FF);
@@ -194,7 +194,8 @@ public class SonggkaConfigScreen extends Screen {
         int presetDropH = (colorPickerExpanded && presetDropdownOpen) ? (ROW_H * com.songgka.client.color.NameColorManager.COLORS.length) : 0;
         int totalH = HEADER_H + CAT_H + (colorPickerExpanded ? (ROW_H * 2 + presetDropH + 96) : 0) + 
                      CAT_H + (songConfigExpanded ? (ROW_H * 3 + dropH) : 0) +
-                     CAT_H + (sizeConfigExpanded ? (ROW_H * 3) : 0) + 4;
+                     CAT_H + (sizeConfigExpanded ? (ROW_H * 3) : 0) +
+                     CAT_H + (ghostBlocksExpanded ? (ROW_H * 2 + (ghostBlockDropdownOpen ? ROW_H * 6 : 0)) : 0) + 4;
 
         g.fill(px, py, px + PANEL_W, py + totalH, COL_BG);
 
@@ -445,6 +446,70 @@ public class SonggkaConfigScreen extends Screen {
             totalH += ROW_H * 3 + dropH;
         }
 
+        // ── Catégorie 4 : Custom Blocks ──
+        int cat4Y1 = cat3Y2 + (songConfigExpanded ? (ROW_H * 3 + dropH) : 0);
+        int cat4Y2 = cat4Y1 + CAT_H;
+
+        if (mx >= px && mx < px + PANEL_W && my >= cat4Y1 && my < cat4Y2)
+            g.fill(px, cat4Y1, px + PANEL_W, cat4Y2, COL_HOVER);
+        g.fill(px, cat4Y1, px + PANEL_W, cat4Y2, COL_CAT_BG);
+        g.fill(px, cat4Y1, px + 2, cat4Y2, ghostBlocksExpanded ? COL_ACCENT : 0x50BB55FF);
+        g.text(font, (ghostBlocksExpanded ? "§7▼ " : "§7▶ ") + "§bCustom Blocks",
+                px + INDENT_1, cat4Y1 + 3, COL_CAT_FG);
+        g.fill(px, cat4Y2 - 1, px + PANEL_W, cat4Y2, COL_SEP);
+
+        if (ghostBlocksExpanded) {
+            int r1y1 = cat4Y2;
+            int r1y2 = r1y1 + ROW_H;
+            if (mx >= px && mx < px + PANEL_W && my >= r1y1 && my < r1y2)
+                g.fill(px, r1y1, px + PANEL_W, r1y2, COL_HOVER);
+            g.fill(px, r1y2 - 1, px + PANEL_W, r1y2, COL_SEP);
+            g.fill(px + INDENT_1, r1y1 + ROW_H / 2, px + INDENT_1 + 4, r1y1 + ROW_H / 2 + 1, 0x60BB55FF);
+            g.text(font, "Enable", px + INDENT_1 + 7, r1y1 + 2, COL_TEXT);
+
+            boolean enabled = com.songgka.client.features.GhostBlockManager.isGhostBlocksEnabled;
+            int pillW = 16, pillH = 7;
+            int pillX = px + PANEL_W - pillW - 5;
+            int pillY = r1y1 + (ROW_H - pillH) / 2;
+            g.fill(pillX, pillY, pillX + pillW, pillY + pillH, enabled ? COL_ON : COL_OFF);
+            int knobX = enabled ? pillX + pillW - pillH : pillX;
+            g.fill(knobX, pillY, knobX + pillH, pillY + pillH, 0xFFFFFFFF);
+
+            int r2y1 = r1y2;
+            int r2y2 = r2y1 + ROW_H;
+            if (mx >= px && mx < px + PANEL_W && my >= r2y1 && my < r2y2)
+                g.fill(px, r2y1, px + PANEL_W, r2y2, COL_HOVER);
+            g.fill(px, r2y2 - 1, px + PANEL_W, r2y2, COL_SEP);
+            g.fill(px + INDENT_1, r2y1 + ROW_H / 2, px + INDENT_1 + 4, r2y1 + ROW_H / 2 + 1, 0x60BB55FF);
+
+            String matStr = com.songgka.client.features.GhostBlockManager.currentGhostMaterial;
+            if (matStr.startsWith("minecraft:")) matStr = matStr.substring(10);
+            String arrow = ghostBlockDropdownOpen ? "§7▼" : "§7▶";
+            g.text(font, "Block: §e" + matStr + " " + arrow, px + INDENT_1 + 7, r2y1 + 2, COL_TEXT);
+
+            int currentY = r2y2;
+            
+            if (ghostBlockDropdownOpen) {
+                String[] options = new String[]{"moss_block", "glass", "barrier", "dirt", "diamond_block", "gold_block"};
+                for (int i = 0; i < options.length; i++) {
+                    int optY1 = currentY;
+                    int optY2 = optY1 + ROW_H;
+                    if (mx >= px && mx < px + PANEL_W && my >= optY1 && my < optY2)
+                        g.fill(px, optY1, px + PANEL_W, optY2, COL_HOVER);
+                    g.fill(px, optY2 - 1, px + PANEL_W, optY2, COL_SEP);
+
+                    boolean isSelected = ("minecraft:" + options[i]).equals(com.songgka.client.features.GhostBlockManager.currentGhostMaterial);
+                    String prefix = isSelected ? "  §a✔ " : "    ";
+                    g.text(font, prefix + "§f" + options[i], px + INDENT_2, optY1 + 2, isSelected ? 0xFF55FF55 : COL_TEXT);
+                    currentY = optY2;
+                }
+            }
+
+            totalH += ROW_H * 2 + (ghostBlockDropdownOpen ? ROW_H * 6 : 0) + CAT_H;
+        } else {
+            totalH += CAT_H;
+        }
+
         g.fill(px, py + totalH - 1, px + PANEL_W, py + totalH, 0x40BB55FF);
     }
     
@@ -516,15 +581,21 @@ public class SonggkaConfigScreen extends Screen {
                 }
 
                 if (cmdExpanded) {
-                    int cmdY = subY + SUBCMD_H;
-                    if (my >= cmdY && my < cmdY + SUBCMD_H) {
-                        ModConfig.INSTANCE.enableSong = !ModConfig.INSTANCE.enableSong;
-                        ModConfig.INSTANCE.save();
-                        return true;
-                    }
-                    int cmdY2 = cmdY + SUBCMD_H;
-                    if (my >= cmdY2 && my < cmdY2 + SUBCMD_H) {
-                        ModConfig.INSTANCE.enableMeow = !ModConfig.INSTANCE.enableMeow;
+                    int cmdY = subY + SUBCAT_H;
+                    if (my >= cmdY && my < cmdY + 10 * SUBCMD_H) {
+                        int idx = (my - cmdY) / SUBCMD_H;
+                        switch (idx) {
+                            case 0 -> ModConfig.INSTANCE.enableSong = !ModConfig.INSTANCE.enableSong;
+                            case 1 -> ModConfig.INSTANCE.enableMeow = !ModConfig.INSTANCE.enableMeow;
+                            case 2 -> ModConfig.INSTANCE.enableWanted = !ModConfig.INSTANCE.enableWanted;
+                            case 3 -> ModConfig.INSTANCE.enableKiss = !ModConfig.INSTANCE.enableKiss;
+                            case 4 -> ModConfig.INSTANCE.enableFeed = !ModConfig.INSTANCE.enableFeed;
+                            case 5 -> ModConfig.INSTANCE.enablePoke = !ModConfig.INSTANCE.enablePoke;
+                            case 6 -> ModConfig.INSTANCE.enablePat = !ModConfig.INSTANCE.enablePat;
+                            case 7 -> ModConfig.INSTANCE.enableHug = !ModConfig.INSTANCE.enableHug;
+                            case 8 -> ModConfig.INSTANCE.enableSus = !ModConfig.INSTANCE.enableSus;
+                            case 9 -> ModConfig.INSTANCE.enableRizz = !ModConfig.INSTANCE.enableRizz;
+                        }
                         ModConfig.INSTANCE.save();
                         return true;
                     }
@@ -691,6 +762,50 @@ public class SonggkaConfigScreen extends Screen {
                         com.songgka.client.SonggkaClient.requestPairing();
                     }
                     return true;
+                }
+            }
+
+            // Catégorie 4 : Custom Blocks
+            int dropHSong = (songConfigExpanded && platformDropdownOpen) ? (ROW_H * 4) : 0;
+            int cat4Y1 = cat3Y2 + (songConfigExpanded ? (ROW_H * 3 + dropHSong) : 0);
+            int cat4Y2 = cat4Y1 + CAT_H;
+
+            if (my >= cat4Y1 && my < cat4Y2) {
+                ghostBlocksExpanded = !ghostBlocksExpanded;
+                return true;
+            }
+
+            if (ghostBlocksExpanded) {
+                int r1y1 = cat4Y2;
+                int r1y2 = r1y1 + ROW_H;
+                if (my >= r1y1 && my < r1y2) {
+                    com.songgka.client.features.GhostBlockManager.isGhostBlocksEnabled = !com.songgka.client.features.GhostBlockManager.isGhostBlocksEnabled;
+                    if (this.minecraft != null && this.minecraft.levelRenderer != null) {
+                        this.minecraft.levelRenderer.allChanged();
+                    }
+                    return true;
+                }
+                
+                int r2y1 = r1y2;
+                int r2y2 = r2y1 + ROW_H;
+                if (my >= r2y1 && my < r2y2) {
+                    ghostBlockDropdownOpen = !ghostBlockDropdownOpen;
+                    return true;
+                }
+                
+                if (ghostBlockDropdownOpen) {
+                    String[] options = new String[]{"moss_block", "glass", "barrier", "dirt", "diamond_block", "gold_block"};
+                    int currentY = r2y2;
+                    for (int i = 0; i < options.length; i++) {
+                        int optY1 = currentY;
+                        int optY2 = optY1 + ROW_H;
+                        if (my >= optY1 && my < optY2) {
+                            com.songgka.client.features.GhostBlockManager.changeAllGhostBlocks("minecraft:" + options[i]);
+                            ghostBlockDropdownOpen = false;
+                            return true;
+                        }
+                        currentY = optY2;
+                    }
                 }
             }
         }

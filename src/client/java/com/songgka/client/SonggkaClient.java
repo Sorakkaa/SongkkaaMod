@@ -28,7 +28,7 @@ import java.util.concurrent.CompletableFuture;
 
 public class SonggkaClient implements ClientModInitializer {
 
-	public static final String MOD_VERSION = "1.1.0";
+	public static final String MOD_VERSION = "1.2.0";
 	private static final String APP_ID = "songkkaa";
 
 	// Anti-spam state
@@ -41,17 +41,34 @@ public class SonggkaClient implements ClientModInitializer {
 		ModConfig.load();
 		com.songgka.client.color.NameColorManager.init();
 		com.songgka.client.update.UpdateManager.checkForUpdates();
+		com.songgka.client.features.GhostBlockManager.init();
 
 		ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
 			com.songgka.client.color.NameColorManager.syncLocalPlayerColor();
 		});
 
 		ClientSendMessageEvents.CHAT.register((message) -> {
-			if (!ModConfig.INSTANCE.enableSong) return;
-			if (!ModConfig.INSTANCE.enableAc) return;
-			if (message != null && message.trim().toLowerCase().contains("!song")) {
-				fetchAndSendSongWithDelay("/ac ");
+			if (message == null) return;
+			
+			Minecraft mc = Minecraft.getInstance();
+			boolean isHypixel = mc.getCurrentServer() != null && mc.getCurrentServer().ip != null && mc.getCurrentServer().ip.toLowerCase().contains("hypixel");
+			
+			// If on Hypixel and using a toggled chat without a slash (e.g. just typing "!meow"),
+			// we wait for the server to echo the message back (Party > , Guild > ) so we can accurately
+			// detect the channel. If they use a slash (e.g. "/pc !meow") or are in Singleplayer, we process it now.
+			if (isHypixel && !message.startsWith("/")) {
+				return;
 			}
+			
+			String lower = message.trim().toLowerCase();
+			if (lower.contains("!song") && ModConfig.INSTANCE.enableSong) {
+				String prefix = getChatPrefix(lower);
+				if (prefix.equals("/ac ") && !ModConfig.INSTANCE.enableAc) return;
+				if (prefix.equals("/pc ") && !ModConfig.INSTANCE.enablePc) return;
+				if (prefix.equals("/gc ") && !ModConfig.INSTANCE.enableGc) return;
+				fetchAndSendSongWithDelay(prefix);
+			}
+			checkFunCommands(lower, message);
 		});
 
 		ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> {
@@ -66,7 +83,7 @@ public class SonggkaClient implements ClientModInitializer {
 
 		ClientReceiveMessageEvents.MODIFY_GAME.register((message, overlay) -> {
 			if (overlay) return message;
-			return com.songgka.client.color.NameColorManager.colorizeText(message);
+			return com.songgka.client.color.NameColorManager.colorizeText(message, true);
 		});
 
 		ClientReceiveMessageEvents.GAME.register((message, overlay) -> {
@@ -77,64 +94,128 @@ public class SonggkaClient implements ClientModInitializer {
 			// Normalize non-breaking spaces and lower-case text
 			String lower = text.replace('\u00A0', ' ').toLowerCase().trim();
 			if (lower.contains("!song")) {
-				boolean isParty = lower.contains("party") || lower.contains("p >") || lower.contains("[party]");
-				boolean isGuild = lower.contains("guild") || lower.contains("officer") || lower.contains("g >") || lower.contains("o >") || lower.contains("[guild]");
-
-				if (isParty) {
-					if (ModConfig.INSTANCE.enablePc) {
-						fetchAndSendSongWithDelay("/pc ");
-					}
-				} else if (isGuild) {
-					if (ModConfig.INSTANCE.enableGc) {
-						fetchAndSendSongWithDelay("/gc ");
-					}
-				} else {
-					// Public / All Chat
-					if (ModConfig.INSTANCE.enableAc) {
-						fetchAndSendSongWithDelay("/ac ");
-					}
+				String prefix = getChatPrefix(lower);
+				if (prefix.equals("/pc ") && ModConfig.INSTANCE.enablePc) {
+					fetchAndSendSongWithDelay("/pc ");
+				} else if (prefix.equals("/gc ") && ModConfig.INSTANCE.enableGc) {
+					fetchAndSendSongWithDelay("/gc ");
+				} else if (prefix.equals("/ac ") && ModConfig.INSTANCE.enableAc) {
+					fetchAndSendSongWithDelay("/ac ");
 				}
-			} else if (lower.contains("!meow") && ModConfig.INSTANCE.enableMeow) {
-				String name = null;
-				int meowIdx = text.toLowerCase().indexOf("!meow");
-				if (meowIdx != -1 && text.length() > meowIdx + 5) {
-					String afterMeow = text.substring(meowIdx + 5).replaceAll("(?i)\\u00A7[0-9a-fk-or]", "").trim();
-					if (!afterMeow.isEmpty()) {
-						String[] words = afterMeow.split("\\s+");
-						String arg = words[0];
-						if (arg.matches("^[a-zA-Z0-9_]{3,16}$")) {
-							name = arg;
-						}
-					}
-				}
-				if (name == null || name.isEmpty()) {
-					name = extractNameFromChat(text);
-				}
-				if (name == null) {
-					Minecraft mc = Minecraft.getInstance();
-					name = mc.player != null ? mc.player.getScoreboardName() : "Someone";
-				}
-				int randomPercent = new java.util.Random().nextInt(101);
-				String msg = name + " is " + randomPercent + "% kitty cat";
-
-				boolean isParty = lower.contains("party") || lower.contains("p >") || lower.contains("[party]");
-				boolean isGuild = lower.contains("guild") || lower.contains("officer") || lower.contains("g >") || lower.contains("o >") || lower.contains("[guild]");
-
-				if (isParty) {
-					if (ModConfig.INSTANCE.enablePc) sendServerChatMessage("/pc ", msg);
-				} else if (isGuild) {
-					if (ModConfig.INSTANCE.enableGc) sendServerChatMessage("/gc ", msg);
-				} else {
-					if (ModConfig.INSTANCE.enableAc) sendServerChatMessage("/ac ", msg);
-				}
+			} else {
+				checkFunCommands(lower, text);
 			}
 		});
 
-		ClientSendMessageEvents.MODIFY_CHAT.register((message) -> {
-			if (message == null) return message;
-			return message.replaceAll("(?i)Sorakkaa(?!\\sthe\\sMistress)", "Sorakkaa the Mistress");
+
+	}
+
+	private static String getChatPrefix(String text) {
+		String lower = text.toLowerCase().trim();
+		boolean isParty = lower.contains("party") || lower.contains("p >") || lower.contains("[party]") || lower.startsWith("/pc ") || lower.startsWith("/p ") || lower.startsWith("/chat p");
+		boolean isGuild = lower.contains("guild") || lower.contains("officer") || lower.contains("g >") || lower.contains("o >") || lower.contains("[guild]") || lower.startsWith("/gc ") || lower.startsWith("/g ") || lower.startsWith("/o ") || lower.startsWith("/chat g");
+		
+		if (isParty) return "/pc ";
+		if (isGuild) return "/gc ";
+		return "/ac ";
+	}
+
+	private static void checkFunCommands(String lower, String text) {
+		if (lower.contains("!meow") && ModConfig.INSTANCE.enableMeow) processFunCommand(text, "!meow");
+		else if (lower.contains("!wanted") && ModConfig.INSTANCE.enableWanted) processFunCommand(text, "!wanted");
+		else if (lower.contains("!kiss") && ModConfig.INSTANCE.enableKiss) processFunCommand(text, "!kiss");
+		else if (lower.contains("!feed") && ModConfig.INSTANCE.enableFeed) processFunCommand(text, "!feed");
+		else if (lower.contains("!poke") && ModConfig.INSTANCE.enablePoke) processFunCommand(text, "!poke");
+		else if (lower.contains("!pat") && ModConfig.INSTANCE.enablePat) processFunCommand(text, "!pat");
+		else if (lower.contains("!hug") && ModConfig.INSTANCE.enableHug) processFunCommand(text, "!hug");
+		else if (lower.contains("!sus") && ModConfig.INSTANCE.enableSus) processFunCommand(text, "!sus");
+		else if (lower.contains("!rizz") && ModConfig.INSTANCE.enableRizz) processFunCommand(text, "!rizz");
+	}
+
+	private static long lastCommandTime = 0;
+
+	private static void processFunCommand(String text, String command) {
+		long now = System.currentTimeMillis();
+		if (now - lastCommandTime < 2000) return; // 2 seconds cooldown
+		lastCommandTime = now;
+
+		String lower = text.replace('\u00A0', ' ').toLowerCase().trim();
+		String name = null;
+		int cmdIdx = text.toLowerCase().indexOf(command);
+		if (cmdIdx != -1 && text.length() > cmdIdx + command.length()) {
+			String afterCmd = text.substring(cmdIdx + command.length()).replaceAll("(?i)\\u00A7[0-9a-fk-or]", "").trim();
+			if (!afterCmd.isEmpty()) {
+				String[] words = afterCmd.split("\\s+");
+				String arg = words[0];
+				if (arg.matches("^[a-zA-Z0-9_]{2,16}$")) {
+					name = arg;
+					try {
+						Minecraft mc = Minecraft.getInstance();
+						if (mc.player != null && mc.player.connection != null) {
+							for (net.minecraft.client.multiplayer.PlayerInfo info : mc.player.connection.getOnlinePlayers()) {
+								if (info != null && info.getProfile() != null && info.getProfile().name() != null) {
+									String pName = info.getProfile().name();
+									if (pName.toLowerCase().startsWith(arg.toLowerCase())) {
+										name = pName;
+										break;
+									}
+								}
+							}
+						}
+					} catch (Throwable ignored) {
+					}
+				}
+			}
+		}
+		if (name == null || name.isEmpty()) {
+			name = extractNameFromChat(text);
+		}
+		Minecraft mc = Minecraft.getInstance();
+		String myName = mc.player != null ? mc.player.getScoreboardName() : "I";
+		if (name == null) {
+			name = "Someone";
+		}
+
+		String msg = "";
+		if (command.equals("!meow")) {
+			int randomPercent = new java.util.Random().nextInt(101);
+			msg = name + " is " + randomPercent + "% kitty cat";
+		} else if (command.equals("!wanted")) {
+			msg = name + " is wanted dead or alive for stealing Necron Handel!";
+		} else if (command.equals("!kiss")) {
+			msg = myName + " gave " + name + " a little kiss.";
+		} else if (command.equals("!feed")) {
+			msg = myName + " fed " + name + " a delicious cookie.";
+		} else if (command.equals("!poke")) {
+			msg = myName + " poked " + name + "! Hey, wake up!";
+		} else if (command.equals("!pat")) {
+			msg = myName + " gently patted " + name + " on the head.";
+		} else if (command.equals("!hug")) {
+			msg = myName + " gave " + name + " a warm hug!";
+		} else if (command.equals("!sus")) {
+			msg = name + " is " + new java.util.Random().nextInt(101) + "% sus (definitely the impostor).";
+		} else if (command.equals("!rizz")) {
+			msg = name + " has a " + new java.util.Random().nextInt(101) + "% rizz level! Absolute W.";
+		}
+
+		String prefix = getChatPrefix(lower);
+
+		final String finalMsg = msg;
+		CompletableFuture.runAsync(() -> {
+			try {
+				Thread.sleep(300);
+			} catch (Exception ignored) {}
+			if (prefix.equals("/pc ") && ModConfig.INSTANCE.enablePc) {
+				sendServerChatMessage("/pc ", finalMsg);
+			} else if (prefix.equals("/gc ") && ModConfig.INSTANCE.enableGc) {
+				sendServerChatMessage("/gc ", finalMsg);
+			} else if (prefix.equals("/ac ") && ModConfig.INSTANCE.enableAc) {
+				sendServerChatMessage("/ac ", finalMsg);
+			}
 		});
 	}
+
+
 
 	private static String extractNameFromChat(String text) {
 		int colonIdx = text.indexOf(':');

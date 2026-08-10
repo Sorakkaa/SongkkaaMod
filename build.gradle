@@ -12,6 +12,10 @@ repositories {
 	// Loom adds the essential maven repositories to download Minecraft and libraries from automatically.
 	// See https://docs.gradle.org/current/userguide/declaring_repositories.html
 	// for more information about repositories.
+	maven {
+		name = "DevAuth"
+		url = "https://pkgs.dev.azure.com/djtheredstoner/DevAuth/_packaging/public/maven/v1"
+	}
 }
 
 loom {
@@ -32,6 +36,10 @@ dependencies {
 
 	// Fabric API. This is technically optional, but you probably want it anyway.
 	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+
+	// DevAuth pour se connecter en dev
+	implementation "me.djtheredstoner:DevAuth-fabric:1.2.1"
+	implementation "org.apache.httpcomponents:httpclient:4.5.14"
 }
 
 processResources {
@@ -45,6 +53,11 @@ processResources {
 
 tasks.withType(JavaCompile).configureEach {
 	it.options.release = 25
+}
+
+tasks.withType(JavaExec).configureEach {
+	systemProperty "devauth.enabled", "true"
+	systemProperty "devauth.account", "main"
 }
 
 java {

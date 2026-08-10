@@ -24,6 +24,14 @@ public class ModConfig {
 	public boolean enablePc = true; // /pc ou /p (Party Chat)
 	public boolean enableSong = true; // commande !song activée
 	public boolean enableMeow = true; // commande !meow activée
+	public boolean enableWanted = true;
+	public boolean enableKiss = true;
+	public boolean enableFeed = true;
+	public boolean enablePoke = true;
+	public boolean enablePat = true;
+	public boolean enableHug = true;
+	public boolean enableSus = true;
+	public boolean enableRizz = true;
 	public boolean enableNameColor = true; // couleur du pseudo activée
 	public boolean boldName = true; // pseudo toujours en gras pour les noms colorés
 	public int nameColorIndex = 0; // index de la couleur sélectionnée (0=None, 1=Arc-en-ciel, 2=Custom Hex, etc.)
@@ -33,7 +41,7 @@ public class ModConfig {
 	public boolean playerSizeEnabled = true;
 
 	public String customHexColor = "#FF55AA"; // couleur Hex personnalisée (ex: #FF55AA)
-	public String syncUrl = "http://localhost:5000/colors"; // URL du backend pour la synchronisation
+	public String syncUrl = "https://songkkaa.fredtaniadoma.ovh/colors"; // URL du backend pour la synchronisation
 
 	public static void load() {
 		try {

@@ -7,7 +7,8 @@
 		"ClientPlayNetworkHandlerMixin",
 		"PlayerRendererMixin",
 		"AvatarRenderStateMixin",
-		"TitleScreenMixin"
+		"TitleScreenMixin",
+		"RenderSectionRegionMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

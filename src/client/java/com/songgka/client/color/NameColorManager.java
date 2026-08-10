@@ -29,7 +29,6 @@ import java.util.concurrent.TimeUnit;
 public class NameColorManager {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("Songkkaa");
-    private static long lastDebugLog = 0;
 
     public static class ColorOption {
         public final String code;
@@ -128,33 +127,16 @@ public class NameColorManager {
                 if (syncKey.equals(lastSyncedColor)) return;
                 lastSyncedColor = syncKey;
 
-                JsonObject fullData = new JsonObject();
-                try {
-                    URL getUrl = URI.create(ModConfig.INSTANCE.syncUrl).toURL();
-                    HttpURLConnection getConn = (HttpURLConnection) getUrl.openConnection(java.net.Proxy.NO_PROXY);
-                    getConn.setRequestMethod("GET");
-                    getConn.setConnectTimeout(3000);
-                    getConn.setReadTimeout(3000);
-                    if (getConn.getResponseCode() == 200) {
-                        try (BufferedReader br = new BufferedReader(new InputStreamReader(getConn.getInputStream(), StandardCharsets.UTF_8))) {
-                            StringBuilder sb = new StringBuilder();
-                            String line;
-                            while ((line = br.readLine()) != null) sb.append(line);
-                            if (sb.length() > 0 && sb.charAt(0) == '{') {
-                                fullData = JsonParser.parseString(sb.toString()).getAsJsonObject();
-                            }
-                        }
-                    }
-                } catch (Exception ignored) {}
-
                 JsonObject userObj = new JsonObject();
                 userObj.addProperty("username", name);
                 userObj.addProperty("color", colorCode);
                 userObj.addProperty("sizeX", ModConfig.INSTANCE.playerSizeX);
                 userObj.addProperty("sizeY", ModConfig.INSTANCE.playerSizeY);
                 userObj.addProperty("sizeZ", ModConfig.INSTANCE.playerSizeZ);
-                fullData.add(uuid, userObj);
-                fullData.add(name.toLowerCase(), userObj);
+
+                JsonObject payload = new JsonObject();
+                payload.addProperty("uuid", uuid);
+                payload.add("data", userObj);
 
                 URL putUrl = URI.create(ModConfig.INSTANCE.syncUrl).toURL();
                 HttpURLConnection putConn = (HttpURLConnection) putUrl.openConnection(java.net.Proxy.NO_PROXY);
@@ -165,7 +147,7 @@ public class NameColorManager {
                 putConn.setRequestProperty("Content-Type", "application/json");
 
                 try (OutputStream os = putConn.getOutputStream()) {
-                    os.write(fullData.toString().getBytes(StandardCharsets.UTF_8));
+                    os.write(payload.toString().getBytes(StandardCharsets.UTF_8));
                 }
                 putConn.getResponseCode();
             } catch (Exception ignored) {
@@ -257,50 +239,17 @@ public class NameColorManager {
     }
 
     public static net.minecraft.network.chat.Component colorizeText(net.minecraft.network.chat.Component component) {
+        return colorizeText(component, false);
+    }
+
+    public static net.minecraft.network.chat.Component colorizeText(net.minecraft.network.chat.Component component, boolean isChat) {
         if (component == null) return null;
         try {
-            // Debug log every 5 seconds
-            long now = System.currentTimeMillis();
-            String plainText = component.getString();
-            if (now - lastDebugLog > 5000 && plainText != null && plainText.toLowerCase().contains("sorakkaa")) {
-                lastDebugLog = now;
-                LOGGER.info("[Songkkaa DEBUG] colorizeText input: '{}'", plainText);
-                LOGGER.info("[Songkkaa DEBUG] component tree: {}", dumpComponent(component, 0));
-            }
-            net.minecraft.network.chat.Component result = modifyComponent(component);
-            if (now - lastDebugLog < 100 && plainText != null && plainText.toLowerCase().contains("sorakkaa")) {
-                LOGGER.info("[Songkkaa DEBUG] colorizeText output: '{}'", result.getString());
-            }
-            return result;
+            return modifyComponent(component, isChat);
         } catch (Exception e) {
             LOGGER.error("[Songkkaa] Error in colorizeText", e);
             return component;
         }
-    }
-
-    private static String dumpComponent(net.minecraft.network.chat.Component comp, int depth) {
-        StringBuilder sb = new StringBuilder();
-        String indent = "  ".repeat(depth);
-        var contents = comp.getContents();
-        sb.append(indent).append("Type=").append(contents.getClass().getSimpleName());
-        if (contents instanceof net.minecraft.network.chat.contents.PlainTextContents p) {
-            sb.append(" text='").append(p.text()).append("'");
-        } else if (contents instanceof net.minecraft.network.chat.contents.TranslatableContents t) {
-            sb.append(" key='").append(t.getKey()).append("' args=").append(t.getArgs().length);
-            for (int i = 0; i < t.getArgs().length; i++) {
-                Object arg = t.getArgs()[i];
-                if (arg instanceof net.minecraft.network.chat.Component ac) {
-                    sb.append("\n").append(dumpComponent(ac, depth+1));
-                } else {
-                    sb.append("\n").append(indent).append("  arg[").append(i).append("]=").append(arg);
-                }
-            }
-        }
-        sb.append(" style=").append(comp.getStyle());
-        for (net.minecraft.network.chat.Component sib : comp.getSiblings()) {
-            sb.append("\n").append(dumpComponent(sib, depth+1));
-        }
-        return sb.toString();
     }
 
     public static String stripMiniMessageTags(String text) {
@@ -318,7 +267,7 @@ public class NameColorManager {
         return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_';
     }
 
-    private static net.minecraft.network.chat.Component modifyComponent(net.minecraft.network.chat.Component component) {
+    private static net.minecraft.network.chat.Component modifyComponent(net.minecraft.network.chat.Component component, boolean isChat) {
         if (component == null) return null;
 
         var mc = Minecraft.getInstance();
@@ -349,13 +298,15 @@ public class NameColorManager {
         // Sort targetNames descending by length so longer names match before substrings (e.g. SorakkaaLover before Sorakkaa)
         targetNames.sort((a, b) -> Integer.compare(b.length(), a.length()));
 
-        return recursivelyModify(component, targetNames, nameToColor);
+        return recursivelyModify(component, targetNames, nameToColor, isChat, new boolean[]{false});
     }
 
     private static net.minecraft.network.chat.Component recursivelyModify(
             net.minecraft.network.chat.Component component,
             java.util.List<String> targetNames,
-            Map<String, String> nameToColor) {
+            Map<String, String> nameToColor,
+            boolean isChat,
+            boolean[] passedSeparator) {
         if (component == null) return null;
 
         boolean selfChanged = false;
@@ -369,12 +320,12 @@ public class NameColorManager {
             for (int i = 0; i < args.length; i++) {
                 Object arg = args[i];
                 if (arg instanceof net.minecraft.network.chat.Component argComp) {
-                    net.minecraft.network.chat.Component modifiedArg = recursivelyModify(argComp, targetNames, nameToColor);
+                    net.minecraft.network.chat.Component modifiedArg = recursivelyModify(argComp, targetNames, nameToColor, isChat, passedSeparator);
                     newArgs[i] = modifiedArg;
                     if (modifiedArg != argComp) argsChanged = true;
                 } else if (arg instanceof String argStr) {
                     net.minecraft.network.chat.Component argComp = net.minecraft.network.chat.Component.literal(argStr);
-                    net.minecraft.network.chat.Component modifiedArg = recursivelyModify(argComp, targetNames, nameToColor);
+                    net.minecraft.network.chat.Component modifiedArg = recursivelyModify(argComp, targetNames, nameToColor, isChat, passedSeparator);
                     if (modifiedArg != argComp) {
                         newArgs[i] = modifiedArg;
                         argsChanged = true;
@@ -435,8 +386,31 @@ public class NameColorManager {
                             // Strip only trailing \u00A7X color/format codes right before the name
                             String cleanBefore = before.replaceAll("(\u00A7[0-9a-fA-Fk-rK-R])+$", "");
                             String after = text.substring(idx + name.length());
-                            if (isSorakkaa && !after.toLowerCase().startsWith(" the mistress")) {
+                            boolean isMessageBody = false;
+                            if (isChat) {
+                                if (passedSeparator != null && passedSeparator[0]) {
+                                    isMessageBody = true;
+                                } else {
+                                    int sep1 = text.indexOf(':');
+                                    int sep2 = text.indexOf('»');
+                                    int sep3 = text.indexOf('>');
+                                    int sep4 = text.indexOf('\u00bb'); // another right-guillemet sometimes used
+                                    int minSep = -1;
+                                    if (sep1 != -1) minSep = sep1;
+                                    if (sep2 != -1 && (minSep == -1 || sep2 < minSep)) minSep = sep2;
+                                    if (sep3 != -1 && (minSep == -1 || sep3 < minSep)) minSep = sep3;
+                                    if (sep4 != -1 && (minSep == -1 || sep4 < minSep)) minSep = sep4;
+                                    if (minSep != -1 && minSep < idx) {
+                                        isMessageBody = true;
+                                    }
+                                }
+                            }
+
+                            if (isSorakkaa && !isMessageBody && !after.toLowerCase().startsWith(" the mistress")) {
                                 originalCaseName = originalCaseName + " the Mistress";
+                            }
+                            if (isSorakkaa && isMessageBody && after.toLowerCase().startsWith(" the mistress")) {
+                                after = after.substring(" the mistress".length());
                             }
 
                             String normHex = normalizeHex(colorCode);
@@ -507,6 +481,11 @@ public class NameColorManager {
                         }
                     }
                 }
+                if (isChat && passedSeparator != null && !passedSeparator[0]) {
+                    if (rawText.contains(":") || rawText.contains("»") || rawText.contains(">") || rawText.contains("\u00bb")) {
+                        passedSeparator[0] = true;
+                    }
+                }
             }
         }
         java.util.List<net.minecraft.network.chat.Component> originalSiblings = component.getSiblings();
@@ -514,7 +493,7 @@ public class NameColorManager {
         boolean siblingsChanged = false;
 
         for (net.minecraft.network.chat.Component sibling : originalSiblings) {
-            net.minecraft.network.chat.Component modifiedSibling = recursivelyModify(sibling, targetNames, nameToColor);
+            net.minecraft.network.chat.Component modifiedSibling = recursivelyModify(sibling, targetNames, nameToColor, isChat, passedSeparator);
             newSiblings.add(modifiedSibling);
             if (modifiedSibling != sibling) {
                 siblingsChanged = true;
