@@ -38,13 +38,10 @@ public class PlayerRendererMixin {
             scaleX = ModConfig.INSTANCE.playerSizeX;
             scaleY = ModConfig.INSTANCE.playerSizeY;
             scaleZ = ModConfig.INSTANCE.playerSizeZ;
-        } else {
-            if (NameColorManager.PLAYER_SIZES.containsKey(name)) {
-                float[] sizes = NameColorManager.PLAYER_SIZES.get(name);
-                scaleX = sizes[0];
-                scaleY = sizes[1];
-                scaleZ = sizes[2];
-            }
+        } else if ("sorakkaa".equals(name)) {
+            scaleX = 1.0f;
+            scaleY = 0.29729724f;
+            scaleZ = 0.02702701f;
         }
 
         sizeable.songgka$setScale(scaleX, scaleY, scaleZ);

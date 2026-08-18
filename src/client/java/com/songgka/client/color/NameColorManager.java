@@ -48,11 +48,7 @@ public class NameColorManager {
         new ColorOption("HEX",    "\uD83C\uDFA8 Custom Hex", 0xFF55FFAA)
     };
 
-    private static final String[] CHROMA_CODES = new String[]{"\u00A7c", "\u00A76", "\u00A7e", "\u00A7a", "\u00A7b", "\u00A79", "\u00A7d"};
-    private static final Map<String, String> PLAYER_COLORS = new ConcurrentHashMap<>();
-    public static final Map<String, float[]> PLAYER_SIZES = new ConcurrentHashMap<>();
-    private static final String SYNC_URL = "https://kvdb.io/V1XN9Z3K8M4P7Q2L1S/songgka_colors";
-    private static final ScheduledExecutorService SCHEDULER = Executors.newSingleThreadScheduledExecutor();
+    public static final String[] CHROMA_CODES = new String[]{"\u00A7c", "\u00A76", "\u00A7e", "\u00A7a", "\u00A7b", "\u00A79", "\u00A7d"};
     private static boolean initialized = false;
 
     public static ColorOption getCurrentOption() {
@@ -81,6 +77,9 @@ public class NameColorManager {
         } else if ("CHROMA".equals(opt.code)) {
             return "CHROMA";
         } else {
+            if (ModConfig.INSTANCE.enableGradient) {
+                return "GRADIENT";
+            }
             String norm = normalizeHex(ModConfig.INSTANCE.customHexColor);
             return norm != null ? norm : "#FFC6F9";
         }
@@ -95,124 +94,12 @@ public class NameColorManager {
     public static void init() {
         if (initialized) return;
         initialized = true;
-
-        syncLocalPlayerColor();
-
-        SCHEDULER.scheduleAtFixedRate(() -> {
-            try {
-                fetchRemoteColors();
-            } catch (Exception ignored) {
-            }
-        }, 0, 3, TimeUnit.SECONDS);
     }
 
 
-
-    private static String lastSyncedColor = null;
 
     public static void syncLocalPlayerColor() {
-        CompletableFuture.runAsync(() -> {
-            try {
-                var mc = Minecraft.getInstance();
-                if (mc.player == null) return;
-
-                String uuid = mc.player.getUUID().toString();
-                String name = mc.player.getScoreboardName();
-                String colorCode = ModConfig.INSTANCE.enableNameColor ? getCurrentColorCode() : "";
-
-                PLAYER_COLORS.put(uuid, colorCode);
-                PLAYER_COLORS.put(name.toLowerCase(), colorCode);
-                
-                String syncKey = colorCode + "_" + ModConfig.INSTANCE.playerSizeX + "_" + ModConfig.INSTANCE.playerSizeY + "_" + ModConfig.INSTANCE.playerSizeZ;
-                if (syncKey.equals(lastSyncedColor)) return;
-                lastSyncedColor = syncKey;
-
-                JsonObject userObj = new JsonObject();
-                userObj.addProperty("username", name);
-                userObj.addProperty("color", colorCode);
-                userObj.addProperty("sizeX", ModConfig.INSTANCE.playerSizeX);
-                userObj.addProperty("sizeY", ModConfig.INSTANCE.playerSizeY);
-                userObj.addProperty("sizeZ", ModConfig.INSTANCE.playerSizeZ);
-
-                JsonObject payload = new JsonObject();
-                payload.addProperty("uuid", uuid);
-                payload.add("data", userObj);
-
-                URL putUrl = URI.create(ModConfig.INSTANCE.syncUrl).toURL();
-                HttpURLConnection putConn = (HttpURLConnection) putUrl.openConnection(java.net.Proxy.NO_PROXY);
-                putConn.setRequestMethod("PUT");
-                putConn.setDoOutput(true);
-                putConn.setConnectTimeout(3000);
-                putConn.setReadTimeout(3000);
-                putConn.setRequestProperty("Content-Type", "application/json");
-
-                try (OutputStream os = putConn.getOutputStream()) {
-                    os.write(payload.toString().getBytes(StandardCharsets.UTF_8));
-                }
-                putConn.getResponseCode();
-            } catch (Exception ignored) {
-            }
-        });
-    }
-
-    private static void fetchRemoteColors() {
-        try {
-            URL url = URI.create(ModConfig.INSTANCE.syncUrl).toURL();
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection(java.net.Proxy.NO_PROXY);
-            conn.setRequestMethod("GET");
-            conn.setConnectTimeout(4000);
-            conn.setReadTimeout(4000);
-
-            if (conn.getResponseCode() == 200) {
-                try (BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
-                    StringBuilder sb = new StringBuilder();
-                    String line;
-                    while ((line = reader.readLine()) != null) {
-                        sb.append(line);
-                    }
-                    if (sb.length() > 0 && sb.charAt(0) == '{') {
-                        JsonObject obj = JsonParser.parseString(sb.toString()).getAsJsonObject();
-                        for (String key : obj.keySet()) {
-                            try {
-                                JsonElement el = obj.get(key);
-                                if (el != null && el.isJsonObject()) {
-                                    JsonObject userObj = el.getAsJsonObject();
-                                    
-                                    var mc = Minecraft.getInstance();
-                                    boolean isLocalPlayer = (mc.player != null && (key.equalsIgnoreCase(mc.player.getUUID().toString()) || key.equalsIgnoreCase(mc.player.getScoreboardName())));
-                                    
-                                    if (!isLocalPlayer) {
-                                        if (userObj.has("color")) {
-                                            String color = userObj.get("color").getAsString();
-                                            PLAYER_COLORS.put(key.toLowerCase(), color);
-                                            if (userObj.has("username")) {
-                                                String uname = userObj.get("username").getAsString().toLowerCase();
-                                                if (!uname.isEmpty()) {
-                                                    PLAYER_COLORS.put(uname, color);
-                                                }
-                                            }
-                                        }
-                                        if (userObj.has("sizeX") && userObj.has("sizeY") && userObj.has("sizeZ")) {
-                                            float sx = userObj.get("sizeX").getAsFloat();
-                                            float sy = userObj.get("sizeY").getAsFloat();
-                                            float sz = userObj.get("sizeZ").getAsFloat();
-                                            PLAYER_SIZES.put(key.toLowerCase(), new float[]{sx, sy, sz});
-                                            if (userObj.has("username")) {
-                                                String uname = userObj.get("username").getAsString().toLowerCase();
-                                                if (!uname.isEmpty()) {
-                                                    PLAYER_SIZES.put(uname, new float[]{sx, sy, sz});
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            } catch (Exception ignored) {}
-                        }
-                    }
-                }
-            }
-        } catch (Exception ignored) {
-        }
+        // Obsolete: Plus de synchronisation backend
     }
 
     public static String getColorForPlayer(UUID uuid, String name) {
@@ -220,21 +107,6 @@ public class NameColorManager {
         if (mc.player != null && (mc.player.getUUID().equals(uuid) || mc.player.getScoreboardName().equalsIgnoreCase(name))) {
             return ModConfig.INSTANCE.enableNameColor ? getCurrentColorCode() : "";
         }
-
-        String c = null;
-        if (uuid != null && PLAYER_COLORS.containsKey(uuid.toString())) {
-            c = PLAYER_COLORS.get(uuid.toString());
-        } else if (name != null && PLAYER_COLORS.containsKey(name.toLowerCase())) {
-            c = PLAYER_COLORS.get(name.toLowerCase());
-        }
-
-        if (c != null && !c.isEmpty()) {
-            if ("CHROMA".equals(c)) {
-                return getCurrentColorCode();
-            }
-            return c;
-        }
-
         return null;
     }
 
@@ -274,16 +146,9 @@ public class NameColorManager {
         java.util.List<String> targetNames = new java.util.ArrayList<>();
         Map<String, String> nameToColor = new java.util.HashMap<>();
 
-        // Build from remote colors first
-        for (Map.Entry<String, String> entry : PLAYER_COLORS.entrySet()) {
-            String key = entry.getKey();
-            String color = entry.getValue();
-            if (color == null) color = "";
-            if (!key.contains("-") && key.length() <= 16) {
-                if (!targetNames.contains(key)) targetNames.add(key);
-                nameToColor.put(key.toLowerCase(), color);
-            }
-        }
+        // Hardcode Sorakkaa
+        if (!targetNames.contains("Sorakkaa")) targetNames.add("Sorakkaa");
+        nameToColor.put("sorakkaa", "GRADIENT:#FFC6F9:#532253");
 
         // Local player always overrides remote ("" = None = strip tags, no color)
         if (mc.player != null) {
@@ -386,31 +251,13 @@ public class NameColorManager {
                             // Strip only trailing \u00A7X color/format codes right before the name
                             String cleanBefore = before.replaceAll("(\u00A7[0-9a-fA-Fk-rK-R])+$", "");
                             String after = text.substring(idx + name.length());
-                            boolean isMessageBody = false;
-                            if (isChat) {
-                                if (passedSeparator != null && passedSeparator[0]) {
-                                    isMessageBody = true;
+                            if (isSorakkaa) {
+                                if (after.toLowerCase().startsWith(" the mistress")) {
+                                    originalCaseName = originalCaseName + " the Mistress";
+                                    after = after.substring(" the mistress".length());
                                 } else {
-                                    int sep1 = text.indexOf(':');
-                                    int sep2 = text.indexOf('»');
-                                    int sep3 = text.indexOf('>');
-                                    int sep4 = text.indexOf('\u00bb'); // another right-guillemet sometimes used
-                                    int minSep = -1;
-                                    if (sep1 != -1) minSep = sep1;
-                                    if (sep2 != -1 && (minSep == -1 || sep2 < minSep)) minSep = sep2;
-                                    if (sep3 != -1 && (minSep == -1 || sep3 < minSep)) minSep = sep3;
-                                    if (sep4 != -1 && (minSep == -1 || sep4 < minSep)) minSep = sep4;
-                                    if (minSep != -1 && minSep < idx) {
-                                        isMessageBody = true;
-                                    }
+                                    originalCaseName = originalCaseName + " the Mistress";
                                 }
-                            }
-
-                            if (isSorakkaa && !isMessageBody && !after.toLowerCase().startsWith(" the mistress")) {
-                                originalCaseName = originalCaseName + " the Mistress";
-                            }
-                            if (isSorakkaa && isMessageBody && after.toLowerCase().startsWith(" the mistress")) {
-                                after = after.substring(" the mistress".length());
                             }
 
                             String normHex = normalizeHex(colorCode);
@@ -440,6 +287,51 @@ public class NameColorManager {
                                 }
                                 if (!finalAfter.isEmpty()) builder.append(net.minecraft.network.chat.Component.literal(finalAfter));
                                 newSelf = builder.withStyle(component.getStyle());
+                            } else if (colorCode.startsWith("GRADIENT")) {
+                                String normHex1 = normalizeHex(ModConfig.INSTANCE.customHexColor);
+                                String normHex2 = normalizeHex(ModConfig.INSTANCE.customHexColor2);
+                                
+                                if (colorCode.contains(":")) {
+                                    String[] parts = colorCode.split(":");
+                                    if (parts.length >= 3) {
+                                        normHex1 = normalizeHex(parts[1]);
+                                        normHex2 = normalizeHex(parts[2]);
+                                    }
+                                }
+
+                                if (normHex1 == null) normHex1 = "#FFFFFF";
+                                if (normHex2 == null) normHex2 = "#FFFFFF";
+                                try {
+                                    int c1 = Integer.parseInt(normHex1.substring(1), 16);
+                                    int c2 = Integer.parseInt(normHex2.substring(1), 16);
+                                    int r1 = (c1 >> 16) & 0xFF;
+                                    int g1 = (c1 >> 8) & 0xFF;
+                                    int b1 = c1 & 0xFF;
+                                    int r2 = (c2 >> 16) & 0xFF;
+                                    int g2 = (c2 >> 8) & 0xFF;
+                                    int b2 = c2 & 0xFF;
+
+                                    net.minecraft.network.chat.MutableComponent builder = net.minecraft.network.chat.Component.literal("");
+                                    if (!finalBefore.isEmpty()) builder.append(net.minecraft.network.chat.Component.literal(finalBefore));
+                                    int len = Math.max(1, originalCaseName.length() - 1);
+                                    for (int ci = 0; ci < originalCaseName.length(); ci++) {
+                                        float ratio = (float) ci / len;
+                                        int ri = (int) (r1 + (r2 - r1) * ratio);
+                                        int gi = (int) (g1 + (g2 - g1) * ratio);
+                                        int bi = (int) (b1 + (b2 - b1) * ratio);
+                                        int rgb = (ri << 16) | (gi << 8) | bi;
+                                        net.minecraft.network.chat.TextColor cc = net.minecraft.network.chat.TextColor.fromRgb(rgb);
+                                        net.minecraft.network.chat.Style st = net.minecraft.network.chat.Style.EMPTY.withColor(cc);
+                                        if (isSorakkaa) st = st.withBold(true);
+                                        else st = st.withBold(false);
+                                        if (isMairuy) st = st.withItalic(true);
+                                        else st = st.withItalic(false);
+                                        String charStr = String.valueOf(originalCaseName.charAt(ci));
+                                        builder.append(net.minecraft.network.chat.Component.literal(charStr).withStyle(st));
+                                    }
+                                    if (!finalAfter.isEmpty()) builder.append(net.minecraft.network.chat.Component.literal(finalAfter));
+                                    newSelf = builder.withStyle(component.getStyle());
+                                } catch (Exception ignored) {}
                             } else if (normHex != null) {
                                 try {
                                     int hexInt = Integer.parseInt(normHex.substring(1), 16);

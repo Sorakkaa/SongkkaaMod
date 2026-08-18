@@ -41,8 +41,8 @@ public class ModConfig {
 	public boolean playerSizeEnabled = true;
 
 	public String customHexColor = "#FF55AA"; // couleur Hex personnalisée (ex: #FF55AA)
-	public String syncUrl = "https://songkkaa.fredtaniadoma.ovh/colors"; // URL du backend pour la synchronisation
-
+	public String customHexColor2 = "#55FFFF"; // deuxième couleur pour le dégradé
+	public boolean enableGradient = false; // activer le dégradé à 2 couleurs
 	public static void load() {
 		try {
 			if (Files.exists(CONFIG_FILE)) {

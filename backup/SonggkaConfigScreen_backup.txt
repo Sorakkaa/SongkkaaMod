@@ -48,7 +48,6 @@ public class SonggkaConfigScreen extends Screen {
     private boolean platformDropdownOpen = false;
     private boolean presetDropdownOpen = false;
     private boolean hexInputFocused = false;
-    private boolean editingColor2 = false;
     private float selectedHue = 0.0f;
     
     private boolean sizeConfigExpanded = false;
@@ -193,7 +192,7 @@ public class SonggkaConfigScreen extends Screen {
         var font = Minecraft.getInstance().font;
         int dropH = (songConfigExpanded && platformDropdownOpen) ? (ROW_H * 4) : 0;
         int presetDropH = (colorPickerExpanded && presetDropdownOpen) ? (ROW_H * com.songgka.client.color.NameColorManager.COLORS.length) : 0;
-        int totalH = HEADER_H + CAT_H + (colorPickerExpanded ? (ROW_H * (ModConfig.INSTANCE.enableGradient ? 4 : 3) + presetDropH + 96) : 0) + 
+        int totalH = HEADER_H + CAT_H + (colorPickerExpanded ? (ROW_H * 2 + presetDropH + 96) : 0) + 
                      CAT_H + (songConfigExpanded ? (ROW_H * 3 + dropH) : 0) +
                      CAT_H + (sizeConfigExpanded ? (ROW_H * 3) : 0) +
                      CAT_H + (ghostBlocksExpanded ? (ROW_H * 2 + (ghostBlockDropdownOpen ? ROW_H * 6 : 0)) : 0) + 4;
@@ -267,43 +266,13 @@ public class SonggkaConfigScreen extends Screen {
             }
 
             int dropY = r01y2 + renderPresetDropH + 4;
-            int r02y1 = dropY;
-            int r02y2 = r02y1 + ROW_H;
-            if (mx >= px && mx < px + PANEL_W && my >= r02y1 && my < r02y2)
-                g.fill(px, r02y1, px + PANEL_W, r02y2, COL_HOVER);
-            g.fill(px, r02y2 - 1, px + PANEL_W, r02y2, COL_SEP);
-            g.fill(px + INDENT_1, r02y1 + ROW_H / 2, px + INDENT_1 + 4, r02y1 + ROW_H / 2 + 1, 0x60BB55FF);
-            g.text(font, "Enable Gradient", px + INDENT_1 + 7, r02y1 + 2, COL_TEXT);
-
-            boolean gradEnabled = ModConfig.INSTANCE.enableGradient;
-            int gPillW = 16, gPillH = 7;
-            int gPillX = px + PANEL_W - gPillW - 5;
-            int gPillY = r02y1 + (ROW_H - gPillH) / 2;
-            g.fill(gPillX, gPillY, gPillX + gPillW, gPillY + gPillH, gradEnabled ? COL_ON : COL_OFF);
-            int gKnobX = gradEnabled ? gPillX + gPillW - gPillH : gPillX;
-            g.fill(gKnobX, gPillY, gKnobX + gPillH, gPillY + gPillH, 0xFFFFFFFF);
-
-            int r03y1 = r02y2;
-            int r03y2 = r03y1 + ROW_H;
-            if (gradEnabled) {
-                if (mx >= px && mx < px + PANEL_W && my >= r03y1 && my < r03y2)
-                    g.fill(px, r03y1, px + PANEL_W, r03y2, COL_HOVER);
-                g.fill(px, r03y2 - 1, px + PANEL_W, r03y2, COL_SEP);
-                g.fill(px + INDENT_1, r03y1 + ROW_H / 2, px + INDENT_1 + 4, r03y1 + ROW_H / 2 + 1, 0x60BB55FF);
-                String editStr = editingColor2 ? "Editing: Color 2" : "Editing: Color 1";
-                g.text(font, editStr, px + INDENT_1 + 7, r03y1 + 2, COL_TEXT);
-                dropY = r03y2 + 4;
-            } else {
-                dropY = r02y2 + 4;
-            }
-
             int boxX = px + INDENT_1;
             int boxY = dropY;
             int boxW = PANEL_W - INDENT_1 * 2;
             int boxH = 55;
 
             // 1. 2D Saturation / Value Box
-            String curHex = editingColor2 && gradEnabled ? ModConfig.INSTANCE.customHexColor2 : ModConfig.INSTANCE.customHexColor;
+            String curHex = ModConfig.INSTANCE.customHexColor;
             int currentRgb = 0xFF55AA;
             float currentSat = 1.0f, currentVal = 1.0f;
             if (curHex != null && curHex.startsWith("#") && curHex.length() == 7) {
@@ -373,7 +342,7 @@ public class SonggkaConfigScreen extends Screen {
         }
 
         // ── Catégorie 2 : Player Size ──
-        int cat2Y1 = cat1Y2 + (colorPickerExpanded ? (ROW_H * (ModConfig.INSTANCE.enableGradient ? 4 : 3) + presetDropH + 96) : 0);
+        int cat2Y1 = cat1Y2 + (colorPickerExpanded ? (ROW_H * 2 + presetDropH + 96) : 0);
         int cat2Y2 = cat2Y1 + CAT_H;
 
         if (mx >= px && mx < px + PANEL_W && my >= cat2Y1 && my < cat2Y2)
@@ -512,15 +481,31 @@ public class SonggkaConfigScreen extends Screen {
                 g.fill(px, r2y1, px + PANEL_W, r2y2, COL_HOVER);
             g.fill(px, r2y2 - 1, px + PANEL_W, r2y2, COL_SEP);
             g.fill(px + INDENT_1, r2y1 + ROW_H / 2, px + INDENT_1 + 4, r2y1 + ROW_H / 2 + 1, 0x60BB55FF);
-            g.text(font, "Glass Pad", px + INDENT_1 + 7, r2y1 + 2, COL_TEXT);
 
-            boolean glassEnabled = com.songgka.client.features.GhostBlockManager.isGlassGhostBlocksEnabled;
-            int gPillY = r2y1 + (ROW_H - pillH) / 2;
-            g.fill(pillX, gPillY, pillX + pillW, gPillY + pillH, glassEnabled ? COL_ON : COL_OFF);
-            int gKnobX = glassEnabled ? pillX + pillW - pillH : pillX;
-            g.fill(gKnobX, gPillY, gKnobX + pillH, gPillY + pillH, 0xFFFFFFFF);
+            String matStr = com.songgka.client.features.GhostBlockManager.currentGhostMaterial;
+            if (matStr.startsWith("minecraft:")) matStr = matStr.substring(10);
+            String arrow = ghostBlockDropdownOpen ? "§7▼" : "§7▶";
+            g.text(font, "Block: §e" + matStr + " " + arrow, px + INDENT_1 + 7, r2y1 + 2, COL_TEXT);
 
-            totalH += ROW_H * 2 + CAT_H;
+            int currentY = r2y2;
+            
+            if (ghostBlockDropdownOpen) {
+                String[] options = new String[]{"moss_block", "glass", "barrier", "dirt", "diamond_block", "gold_block"};
+                for (int i = 0; i < options.length; i++) {
+                    int optY1 = currentY;
+                    int optY2 = optY1 + ROW_H;
+                    if (mx >= px && mx < px + PANEL_W && my >= optY1 && my < optY2)
+                        g.fill(px, optY1, px + PANEL_W, optY2, COL_HOVER);
+                    g.fill(px, optY2 - 1, px + PANEL_W, optY2, COL_SEP);
+
+                    boolean isSelected = ("minecraft:" + options[i]).equals(com.songgka.client.features.GhostBlockManager.currentGhostMaterial);
+                    String prefix = isSelected ? "  §a✔ " : "    ";
+                    g.text(font, prefix + "§f" + options[i], px + INDENT_2, optY1 + 2, isSelected ? 0xFF55FF55 : COL_TEXT);
+                    currentY = optY2;
+                }
+            }
+
+            totalH += ROW_H * 2 + (ghostBlockDropdownOpen ? ROW_H * 6 : 0) + CAT_H;
         } else {
             totalH += CAT_H;
         }
@@ -666,25 +651,7 @@ public class SonggkaConfigScreen extends Screen {
                     presetDropH = colors.length * ROW_H;
                 }
 
-                int r02y1 = r01y2 + presetDropH + 4;
-                int r02y2 = r02y1 + ROW_H;
-                if (my >= r02y1 && my < r02y2) {
-                    ModConfig.INSTANCE.enableGradient = !ModConfig.INSTANCE.enableGradient;
-                    ModConfig.INSTANCE.save();
-                    return true;
-                }
-
-                int r03y1 = r02y2;
-                int r03y2 = r03y1 + ROW_H;
-                int dropY = r02y2 + 4;
-                if (ModConfig.INSTANCE.enableGradient) {
-                    if (my >= r03y1 && my < r03y2) {
-                        editingColor2 = !editingColor2;
-                        return true;
-                    }
-                    dropY = r03y2 + 4;
-                }
-
+                int dropY = r01y2 + presetDropH + 4;
                 int boxX = miscX + INDENT_1;
                 int boxY = dropY;
                 int boxW = PANEL_W - INDENT_1 * 2;
@@ -720,7 +687,7 @@ public class SonggkaConfigScreen extends Screen {
             }
 
             // Catégorie 2 : Player Size
-            int cat2Y1 = cat1Y2 + (colorPickerExpanded ? (ROW_H * (ModConfig.INSTANCE.enableGradient ? 4 : 3) + (presetDropdownOpen ? com.songgka.client.color.NameColorManager.COLORS.length * ROW_H : 0) + 96) : 0);
+            int cat2Y1 = cat1Y2 + (colorPickerExpanded ? (ROW_H * 2 + (presetDropdownOpen ? com.songgka.client.color.NameColorManager.COLORS.length * ROW_H : 0) + 96) : 0);
             int cat2Y2 = cat2Y1 + CAT_H;
 
             if (my >= cat2Y1 && my < cat2Y2) {
@@ -818,15 +785,27 @@ public class SonggkaConfigScreen extends Screen {
                     }
                     return true;
                 }
-
+                
                 int r2y1 = r1y2;
                 int r2y2 = r2y1 + ROW_H;
                 if (my >= r2y1 && my < r2y2) {
-                    com.songgka.client.features.GhostBlockManager.isGlassGhostBlocksEnabled = !com.songgka.client.features.GhostBlockManager.isGlassGhostBlocksEnabled;
-                    if (this.minecraft != null && this.minecraft.levelRenderer != null) {
-                        this.minecraft.levelRenderer.allChanged();
-                    }
+                    ghostBlockDropdownOpen = !ghostBlockDropdownOpen;
                     return true;
+                }
+                
+                if (ghostBlockDropdownOpen) {
+                    String[] options = new String[]{"moss_block", "glass", "barrier", "dirt", "diamond_block", "gold_block"};
+                    int currentY = r2y2;
+                    for (int i = 0; i < options.length; i++) {
+                        int optY1 = currentY;
+                        int optY2 = optY1 + ROW_H;
+                        if (my >= optY1 && my < optY2) {
+                            com.songgka.client.features.GhostBlockManager.changeAllGhostBlocks("minecraft:" + options[i]);
+                            ghostBlockDropdownOpen = false;
+                            return true;
+                        }
+                        currentY = optY2;
+                    }
                 }
             }
         }
@@ -901,20 +880,16 @@ public class SonggkaConfigScreen extends Screen {
         float sat = Math.max(0.0f, Math.min(1.0f, (float) relX / (float) boxW));
         float val = Math.max(0.0f, Math.min(1.0f, 1.0f - ((float) relY / (float) boxH)));
         int rgb = java.awt.Color.HSBtoRGB(selectedHue, sat, val) & 0xFFFFFF;
-        String hex = String.format("#%06X", rgb);
-        if (editingColor2 && ModConfig.INSTANCE.enableGradient) {
-            ModConfig.INSTANCE.customHexColor2 = hex;
-        } else {
-            ModConfig.INSTANCE.customHexColor = hex;
-            ModConfig.INSTANCE.nameColorIndex = 2;
-        }
+        ModConfig.INSTANCE.customHexColor = String.format("#%06X", rgb);
+        ModConfig.INSTANCE.nameColorIndex = 2;
         ModConfig.INSTANCE.save();
+        com.songgka.client.color.NameColorManager.syncLocalPlayerColor();
     }
 
     private void updateColorFromHue(int relX, int hueW) {
         selectedHue = Math.max(0.0f, Math.min(1.0f, (float) relX / (float) hueW));
         // Maintain current sat & val
-        String curHex = editingColor2 && ModConfig.INSTANCE.enableGradient ? ModConfig.INSTANCE.customHexColor2 : ModConfig.INSTANCE.customHexColor;
+        String curHex = ModConfig.INSTANCE.customHexColor;
         float sat = 1.0f, val = 1.0f;
         if (curHex != null && curHex.startsWith("#") && curHex.length() == 7) {
             try {
@@ -925,20 +900,16 @@ public class SonggkaConfigScreen extends Screen {
             } catch (Exception ignored) {}
         }
         int rgb = java.awt.Color.HSBtoRGB(selectedHue, sat, val) & 0xFFFFFF;
-        String hex = String.format("#%06X", rgb);
-        if (editingColor2 && ModConfig.INSTANCE.enableGradient) {
-            ModConfig.INSTANCE.customHexColor2 = hex;
-        } else {
-            ModConfig.INSTANCE.customHexColor = hex;
-            ModConfig.INSTANCE.nameColorIndex = 2;
-        }
+        ModConfig.INSTANCE.customHexColor = String.format("#%06X", rgb);
+        ModConfig.INSTANCE.nameColorIndex = 2;
         ModConfig.INSTANCE.save();
+        com.songgka.client.color.NameColorManager.syncLocalPlayerColor();
     }
 
     @Override
     public boolean charTyped(net.minecraft.client.input.CharacterEvent event) {
         if (hexInputFocused) {
-            String cur = editingColor2 && ModConfig.INSTANCE.enableGradient ? ModConfig.INSTANCE.customHexColor2 : ModConfig.INSTANCE.customHexColor;
+            String cur = ModConfig.INSTANCE.customHexColor;
             if (cur == null || !cur.startsWith("#")) cur = "#";
 
             char chr = (char) event.codepoint();
@@ -951,13 +922,10 @@ public class SonggkaConfigScreen extends Screen {
                 }
             }
 
-            if (editingColor2 && ModConfig.INSTANCE.enableGradient) {
-                ModConfig.INSTANCE.customHexColor2 = cur;
-            } else {
-                ModConfig.INSTANCE.customHexColor = cur;
-                ModConfig.INSTANCE.nameColorIndex = 2;
-            }
+            ModConfig.INSTANCE.customHexColor = cur;
+            ModConfig.INSTANCE.nameColorIndex = 2;
             ModConfig.INSTANCE.save();
+            com.songgka.client.color.NameColorManager.syncLocalPlayerColor();
             return true;
         }
         return super.charTyped(event);
@@ -967,16 +935,12 @@ public class SonggkaConfigScreen extends Screen {
     public boolean keyPressed(net.minecraft.client.input.KeyEvent event) {
         if (hexInputFocused) {
             if (event.key() == 259) { // GLFW_KEY_BACKSPACE
-                String cur = editingColor2 && ModConfig.INSTANCE.enableGradient ? ModConfig.INSTANCE.customHexColor2 : ModConfig.INSTANCE.customHexColor;
+                String cur = ModConfig.INSTANCE.customHexColor;
                 if (cur != null && cur.length() > 1) {
-                    cur = cur.substring(0, cur.length() - 1);
-                    if (editingColor2 && ModConfig.INSTANCE.enableGradient) {
-                        ModConfig.INSTANCE.customHexColor2 = cur;
-                    } else {
-                        ModConfig.INSTANCE.customHexColor = cur;
-                        ModConfig.INSTANCE.nameColorIndex = 2;
-                    }
+                    ModConfig.INSTANCE.customHexColor = cur.substring(0, cur.length() - 1);
+                    ModConfig.INSTANCE.nameColorIndex = 2;
                     ModConfig.INSTANCE.save();
+                    com.songgka.client.color.NameColorManager.syncLocalPlayerColor();
                 }
                 return true;
             }

@@ -28,7 +28,7 @@ import java.util.concurrent.CompletableFuture;
 
 public class SonggkaClient implements ClientModInitializer {
 
-	public static final String MOD_VERSION = "1.2.0";
+	public static final String MOD_VERSION = "1.3.0";
 	private static final String APP_ID = "songkkaa";
 
 	// Anti-spam state
@@ -498,7 +498,7 @@ public class SonggkaClient implements ClientModInitializer {
 					format = "{title} - {artist}";
 				}
 				String body = format.replace("{title}", title).replace("{artist}", artist);
-				sendServerChatMessage(chatPrefix, "[Songkkaa] " + body);
+				sendServerChatMessage(chatPrefix, body);
 				return;
 			}
 		} catch (Exception ignored) {}
@@ -527,7 +527,7 @@ public class SonggkaClient implements ClientModInitializer {
 			artist = parts[1].trim();
 		}
 		String body = format.replace("{title}", title).replace("{artist}", artist);
-		sendServerChatMessage(chatPrefix, "[Songkkaa] " + body);
+		sendServerChatMessage(chatPrefix, body);
 	}
 
 	private static void sendLocalChatMessage(String message) {

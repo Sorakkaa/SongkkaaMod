@@ -8,7 +8,8 @@
 		"PlayerRendererMixin",
 		"AvatarRenderStateMixin",
 		"TitleScreenMixin",
-		"RenderSectionRegionMixin"
+		"RenderSectionRegionMixin",
+		"SodiumLevelSliceMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1
