@@ -208,9 +208,8 @@ public class NameColorManager {
             if (rawText != null && !rawText.isEmpty()) {
                 String text = stripMiniMessageTags(rawText);
                 
-                if (text.toLowerCase().contains("[kiwi]")) {
-                    text = text.replaceAll("(?i)(\\u00A7[0-9a-fA-Fk-rK-R])*\\[Kiwi\\](\\u00A7[0-9a-fA-Fk-rK-R])*\\s*", "");
-                }
+                String kiwiRegex = "(?i)(\\u00A7.)*\\[(\\u00A7.)*k(\\u00A7.)*i(\\u00A7.)*w(\\u00A7.)*i(\\u00A7.)*\\](\\u00A7.)*\\s*";
+                text = text.replaceAll(kiwiRegex, "");
                 
                 if (!text.equals(rawText)) {
                     selfChanged = true;
