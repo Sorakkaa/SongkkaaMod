@@ -13,7 +13,7 @@ public class RenderSectionRegionMixin {
 
     @Inject(method = "getBlockState", at = @At("RETURN"), cancellable = true)
     private void onGetBlockState(BlockPos pos, CallbackInfoReturnable<BlockState> cir) {
-        if (GhostBlockManager.isGhostBlocksEnabled) {
+        if (GhostBlockManager.isGhostBlocksEnabled && com.songgka.client.features.SkyblockDetector.isInF7OrM7) {
             BlockState originalState = cir.getReturnValue();
             if (originalState != null && !originalState.isAir()) {
                 String ghost = GhostBlockManager.ghostBlocks.get(pos.asLong());

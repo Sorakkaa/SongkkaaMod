@@ -15,7 +15,7 @@ public class SodiumLevelSliceMixin {
 
     @Inject(method = "getBlockState(III)Lnet/minecraft/world/level/block/state/BlockState;", at = @At("RETURN"), cancellable = true, require = 0)
     private void onGetBlockState(int x, int y, int z, CallbackInfoReturnable<BlockState> cir) {
-        if (GhostBlockManager.isGhostBlocksEnabled) {
+        if (GhostBlockManager.isGhostBlocksEnabled && com.songgka.client.features.SkyblockDetector.isInF7OrM7) {
             BlockState originalState = cir.getReturnValue();
             if (originalState != null && !originalState.isAir()) {
                 BlockPos pos = new BlockPos(x, y, z);

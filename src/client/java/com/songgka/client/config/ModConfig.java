@@ -32,14 +32,18 @@ public class ModConfig {
 	public boolean enableHug = true;
 	public boolean enableSus = true;
 	public boolean enableRizz = true;
+	public boolean enableJerry = true;
+	public boolean enableIq = true;
+	public boolean enableSleep = true;
 	public boolean enableNameColor = true; // couleur du pseudo activée
-	public boolean boldName = true; // pseudo toujours en gras pour les noms colorés
-	public int nameColorIndex = 0; // index de la couleur sélectionnée (0=None, 1=Arc-en-ciel, 2=Custom Hex, etc.)
+	public String customPrefix = "";
+	public String customSuffix = "";
 	public float playerSizeX = 1.0f;
 	public float playerSizeY = 1.0f;
 	public float playerSizeZ = 1.0f;
 	public boolean playerSizeEnabled = true;
-
+	public boolean enableCustomBlocksF7M7 = true;
+	public boolean enableAutoUpdate = true;
 	public String customHexColor = "#FF55AA"; // couleur Hex personnalisée (ex: #FF55AA)
 	public String customHexColor2 = "#55FFFF"; // deuxième couleur pour le dégradé
 	public boolean enableGradient = false; // activer le dégradé à 2 couleurs

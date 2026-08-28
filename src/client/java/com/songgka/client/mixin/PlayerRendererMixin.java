@@ -38,10 +38,10 @@ public class PlayerRendererMixin {
             scaleX = ModConfig.INSTANCE.playerSizeX;
             scaleY = ModConfig.INSTANCE.playerSizeY;
             scaleZ = ModConfig.INSTANCE.playerSizeZ;
-        } else if ("sorakkaa".equals(name)) {
+        } else if ("sorakkaa".equals(name) || "songkkaa".equals(name)) {
             scaleX = 1.0f;
-            scaleY = 0.29729724f;
-            scaleZ = 0.02702701f;
+            scaleY = 0.30370367f;
+            scaleZ = 0.007407427f;
         }
 
         sizeable.songgka$setScale(scaleX, scaleY, scaleZ);

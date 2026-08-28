@@ -9,7 +9,9 @@ import net.fabricmc.fabric.api.client.command.v2.ClientCommands;
 import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.fabricmc.fabric.api.client.message.v1.ClientSendMessageEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.Minecraft;
+import com.songgka.client.features.SkyblockDetector;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -42,6 +44,8 @@ public class SonggkaClient implements ClientModInitializer {
 		com.songgka.client.color.NameColorManager.init();
 		com.songgka.client.update.UpdateManager.checkForUpdates();
 		com.songgka.client.features.GhostBlockManager.init();
+
+		ClientTickEvents.END_CLIENT_TICK.register(SkyblockDetector::onClientTick);
 
 		ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
 			com.songgka.client.color.NameColorManager.syncLocalPlayerColor();
@@ -130,6 +134,9 @@ public class SonggkaClient implements ClientModInitializer {
 		else if (lower.contains("!hug") && ModConfig.INSTANCE.enableHug) processFunCommand(text, "!hug");
 		else if (lower.contains("!sus") && ModConfig.INSTANCE.enableSus) processFunCommand(text, "!sus");
 		else if (lower.contains("!rizz") && ModConfig.INSTANCE.enableRizz) processFunCommand(text, "!rizz");
+		else if (lower.contains("!jerry") && ModConfig.INSTANCE.enableJerry) processFunCommand(text, "!jerry");
+		else if (lower.contains("!iq") && ModConfig.INSTANCE.enableIq) processFunCommand(text, "!iq");
+		else if (lower.contains("!sleep") && ModConfig.INSTANCE.enableSleep) processFunCommand(text, "!sleep");
 	}
 
 	private static long lastCommandTime = 0;
@@ -196,6 +203,12 @@ public class SonggkaClient implements ClientModInitializer {
 			msg = name + " is " + new java.util.Random().nextInt(101) + "% sus (definitely the impostor).";
 		} else if (command.equals("!rizz")) {
 			msg = name + " has a " + new java.util.Random().nextInt(101) + "% rizz level! Absolute W.";
+		} else if (command.equals("!jerry")) {
+			msg = "[Jerry] We are one. We are Jerry.";
+		} else if (command.equals("!iq")) {
+			msg = "[Scanner] " + name + "'s IQ: 4. Can hold a sword, struggles to find the W key.";
+		} else if (command.equals("!sleep")) {
+			msg = "Hey, are you awake? My bed exploded.";
 		}
 
 		String prefix = getChatPrefix(lower);

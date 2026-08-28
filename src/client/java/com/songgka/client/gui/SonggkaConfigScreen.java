@@ -1,7 +1,7 @@
 package com.songgka.client.gui;
 
 import com.songgka.client.config.ModConfig;
-
+import com.songgka.client.features.GhostBlockManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
@@ -13,950 +13,486 @@ public class SonggkaConfigScreen extends Screen {
     private final Screen lastScreen;
 
     // Layout
-    private static final int START_X  = 6;
-    private static final int START_Y  = 6;
-    private static final int PANEL_W  = 148;
-    private static final int GAP      = 5;
-    private static final int HEADER_H = 16;
-    private static final int CAT_H    = 14;   // niveau 1 : Party Commands
-    private static final int ROW_H    = 13;   // ligne toggle (All/Guild/Party Chat)
-    private static final int SUBCAT_H = 13;   // niveau 2 : Commands
-    private static final int SUBCMD_H = 13;   // ligne commande (song)
-    private static final int INDENT_1 = 8;
-    private static final int INDENT_2 = 16;
+    private static final int WIN_W = 420;
+    private static final int WIN_H = 300;
+    private static final int SIDEBAR_W = 120;
+    private static final int ROW_H = 22;
 
-    // Couleurs
-    private static final int COL_BG      = 0xEE101018;
-    private static final int COL_HDR_BG  = 0xFF1B0B38;
-    private static final int COL_HDR_FG  = 0xFFCC77FF;
-    private static final int COL_ACCENT  = 0xFFBB55FF;
-    private static final int COL_CAT_BG  = 0xFF180F26;
-    private static final int COL_CAT_FG  = 0xFFBB88DD;
-    private static final int COL_SUB_BG  = 0xFF130B20;
-    private static final int COL_TEXT    = 0xFFCCCCCC;
-    private static final int COL_CMD     = 0xFF9977BB;  // texte commande (song)
-    private static final int COL_ON      = 0xFFCC66FF;
-    private static final int COL_OFF     = 0xFF282838;
-    private static final int COL_HOVER   = 0x28FFFFFF;
-    private static final int COL_SEP     = 0x18FFFFFF;
-
-    // États pliage
-    private boolean partyCmdExpanded  = false;
-    private boolean cmdExpanded       = false;
-    private boolean colorPickerExpanded = false;
-    private boolean songConfigExpanded  = false;
-    private boolean platformDropdownOpen = false;
-    private boolean presetDropdownOpen = false;
-    private boolean hexInputFocused = false;
-    private boolean editingColor2 = false;
-    private float selectedHue = 0.0f;
+    // Colors - Glassmorphism Aesthetic
+    private static final int COL_BG         = 0xCC111115;
+    private static final int COL_SIDEBAR    = 0x66000000;
+    private static final int COL_ACCENT     = 0xFF9D00FF;
+    private static final int COL_ACCENT_DIM = 0xAA7D00DF;
+    private static final int COL_HOVER      = 0x339D00FF;
+    private static final int COL_TEXT       = 0xFFFFFFFF;
+    private static final int COL_TEXT_DIM   = 0xFFAAAAAA;
+    private static final int COL_ON         = 0xFF9D00FF;
+    private static final int COL_OFF        = 0xFF555555;
     
-    private boolean sizeConfigExpanded = false;
-    private boolean ghostBlocksExpanded = false;
-    private boolean ghostBlockDropdownOpen = false;
-    private int draggingSlider = -1; // 0=X, 1=Y, 2=Z
+    // State
+    private int activeTab = 0; // 0=Commands, 1=Custom Name, 2=Player Size, 3=Misc
+    
+    // Sub-states
+    private boolean hexInputFocused = false;
+    private boolean prefixInputFocused = false;
+    private boolean suffixInputFocused = false;
+    private boolean editingColor2 = false;
+    private boolean providerDropdownOpen = false;
+    private int draggingSlider = -1; // 0=X, 1=Y, 2=Z, 3=Hue
 
-    private int commandeX, miscX;
+    // Color picker state
+    private float selectedHue = 0.0f;
+    private float selectedSat = 1.0f;
+    private float selectedVal = 1.0f;
 
     public SonggkaConfigScreen(Screen lastScreen) {
-        super(Component.literal("Songkkaa ClickGUI"));
+        super(Component.literal("Astra Client Settings"));
         this.lastScreen = lastScreen;
+        updateHSBFromConfig();
     }
 
-    @Override
-    protected void init() {
-        commandeX = START_X;
-        miscX     = START_X + PANEL_W + GAP;
+    private void updateHSBFromConfig() {
+        String hex = editingColor2 && ModConfig.INSTANCE.enableGradient ? ModConfig.INSTANCE.customHexColor2 : ModConfig.INSTANCE.customHexColor;
+        if (hex != null && hex.length() == 7 && hex.startsWith("#")) {
+            try {
+                int rgb = Integer.parseInt(hex.substring(1), 16);
+                float[] hsb = java.awt.Color.RGBtoHSB((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF, null);
+                selectedHue = hsb[0];
+                selectedSat = hsb[1];
+                selectedVal = hsb[2];
+            } catch (Exception ignored) {}
+        }
     }
-
-    // ── RENDU ──────────────────────────────────────────────────────────────
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor g, int mx, int my, float pt) {
         super.extractRenderState(g, mx, my, pt);
         
-        g.fill(0, 0, this.width, this.height, 0x50000000);
+        g.fill(0, 0, this.width, this.height, 0x77000000);
 
-        renderCommandePanel(g, commandeX, START_Y, mx, my);
-        renderMiscPanel    (g, miscX,     START_Y, mx, my);
-    }
+        int px = (this.width - WIN_W) / 2;
+        int py = (this.height - WIN_H) / 2;
 
-    // ── Panneau COMMANDE ───────────────────────────────────────────────────
-    private void renderCommandePanel(GuiGraphicsExtractor g, int px, int py, int mx, int my) {
-        var font = Minecraft.getInstance().font;
-
-        // Hauteur dynamique
-        int rows   = partyCmdExpanded ? 3 : 0;              // All/Guild/Party Chat
-        int subCat = partyCmdExpanded ? 1 : 0;              // "Commands" header
-        int cmds   = (partyCmdExpanded && cmdExpanded) ? 10 : 0; // song, meow, wanted, kiss, feed, poke, pat, hug, sus, rizz
-        int totalH = HEADER_H + CAT_H + rows * ROW_H + subCat * SUBCAT_H + cmds * SUBCMD_H + 2;
-
-        g.fill(px, py, px + PANEL_W, py + totalH, COL_BG);
-
-        // Header "Commands"
-        g.fill(px, py, px + PANEL_W, py + HEADER_H, COL_HDR_BG);
-        g.fill(px, py + HEADER_H - 1, px + PANEL_W, py + HEADER_H, COL_ACCENT);
-        g.text(font, "§l  🎮  Commands", px + 6, py + 4, COL_HDR_FG);
-
-        // ── Niveau 1 : "Party Commands" ──
-        int catY = py + HEADER_H;
-        if (mx >= px && mx < px + PANEL_W && my >= catY && my < catY + CAT_H)
-            g.fill(px, catY, px + PANEL_W, catY + CAT_H, COL_HOVER);
-        g.fill(px, catY, px + PANEL_W, catY + CAT_H, COL_CAT_BG);
-        g.fill(px, catY, px + 2, catY + CAT_H, partyCmdExpanded ? COL_ACCENT : 0x50BB55FF);
-        g.text(font, (partyCmdExpanded ? "§7▼ " : "§7▶ ") + "§bParty Commands",
-                px + INDENT_1, catY + 3, COL_CAT_FG);
-        g.fill(px, catY + CAT_H - 1, px + PANEL_W, catY + CAT_H, COL_SEP);
-
-        if (!partyCmdExpanded) {
-            g.fill(px, py + totalH - 1, px + PANEL_W, py + totalH, 0x40BB55FF);
-            return;
+        // Draw soft drop shadow for a premium feel
+        for (int i = 0; i < 6; i++) {
+            RenderUtils.fillRoundedRect(g, px - i, py - i, WIN_W + i * 2, WIN_H + i * 2, 8 + i, 0x1A000000);
         }
 
-        // ── 3 lignes toggle (All / Guild / Party Chat) ──
-        int toggleBase = catY + CAT_H;
-        renderToggleRow(g, font, px, toggleBase, 0, "All Chat",   ModConfig.INSTANCE.enableAc, mx, my);
-        renderToggleRow(g, font, px, toggleBase, 1, "Guild Chat", ModConfig.INSTANCE.enableGc, mx, my);
-        renderToggleRow(g, font, px, toggleBase, 2, "Party Chat", ModConfig.INSTANCE.enablePc, mx, my);
+        RenderUtils.fillRoundedRect(g, px, py, WIN_W, WIN_H, 8, COL_BG);
+        RenderUtils.drawGradientOutline(g, px, py, WIN_W, WIN_H, 8, 0x889D00FF, 0x22440088);
+        RenderUtils.fillRoundedRect(g, px, py, SIDEBAR_W, WIN_H, 8, COL_SIDEBAR);
+        
+        var font = Minecraft.getInstance().font;
+        
+        g.text(font, "§lSONGKKAA UI", px + 12, py + 15, COL_TEXT);
+        
+        String[] tabs = {"Commands", "Custom Name", "Player Size", "Misc Settings"};
+        int tabY = py + 40;
+        for (int i = 0; i < tabs.length; i++) {
+            boolean active = (activeTab == i);
+            boolean hover = (mx >= px && mx < px + SIDEBAR_W && my >= tabY && my < tabY + ROW_H);
+            
+            if (active) {
+                RenderUtils.fillRoundedRect(g, px + 8, tabY, SIDEBAR_W - 16, ROW_H, 4, COL_ACCENT_DIM);
+            } else if (hover) {
+                RenderUtils.fillRoundedRect(g, px + 8, tabY, SIDEBAR_W - 16, ROW_H, 4, COL_HOVER);
+            }
+            
+            g.text(font, tabs[i], px + 16, tabY + 7, active ? COL_TEXT : COL_TEXT_DIM);
+            tabY += ROW_H + 4;
+        }
 
-        // ── Niveau 2 : "Commands" ──
-        int subY = toggleBase + 3 * ROW_H;
-        if (mx >= px && mx < px + PANEL_W && my >= subY && my < subY + SUBCAT_H)
-            g.fill(px, subY, px + PANEL_W, subY + SUBCAT_H, COL_HOVER);
-        g.fill(px, subY, px + PANEL_W, subY + SUBCAT_H, COL_SUB_BG);
-        g.fill(px + INDENT_1, subY, px + INDENT_1 + 2, subY + SUBCAT_H,
-                cmdExpanded ? 0xFF9955CC : 0x30BB55FF);
-        g.text(font, (cmdExpanded ? "§7▼ " : "§7▶ ") + "§7Commands",
-                px + INDENT_1 + 5, subY + 2, COL_CAT_FG);
-        g.fill(px, subY + SUBCAT_H - 1, px + PANEL_W, subY + SUBCAT_H, COL_SEP);
+        int cx = px + SIDEBAR_W + 15;
+        int cy = py + 15;
+        int cw = WIN_W - SIDEBAR_W - 30;
 
-        // ── Commandes (si "Commands" déplié) ──
-        if (cmdExpanded) {
-            int cmdY = subY + SUBCAT_H;
-            String[] cmdNames = {"song", "meow", "wanted", "kiss", "feed", "poke", "pat", "hug", "sus", "rizz"};
-            boolean[] cmdStates = {
+        g.text(font, "§l" + tabs[activeTab].toUpperCase(), cx, cy, COL_ACCENT);
+        cy += 20;
+
+        if (activeTab == 0) {
+            cy = renderToggle(g, font, cx, cy, cw, "All Chat (/ac)", ModConfig.INSTANCE.enableAc, mx, my);
+            cy = renderToggle(g, font, cx, cy, cw, "Guild Chat (/gc)", ModConfig.INSTANCE.enableGc, mx, my);
+            cy = renderToggle(g, font, cx, cy, cw, "Party Chat (/pc)", ModConfig.INSTANCE.enablePc, mx, my);
+            
+            cy += 10;
+            g.text(font, "Fun Commands:", cx, cy, COL_TEXT); cy += 12;
+            
+            String[] funLabels = {"!song", "!meow", "!wanted", "!kiss", "!feed", "!poke", "!pat", "!hug", "!sus", "!rizz", "!jerry", "!iq", "!sleep"};
+            boolean[] funStates = {
                 ModConfig.INSTANCE.enableSong, ModConfig.INSTANCE.enableMeow,
                 ModConfig.INSTANCE.enableWanted, ModConfig.INSTANCE.enableKiss,
                 ModConfig.INSTANCE.enableFeed, ModConfig.INSTANCE.enablePoke,
                 ModConfig.INSTANCE.enablePat, ModConfig.INSTANCE.enableHug,
-                ModConfig.INSTANCE.enableSus, ModConfig.INSTANCE.enableRizz
+                ModConfig.INSTANCE.enableSus, ModConfig.INSTANCE.enableRizz,
+                ModConfig.INSTANCE.enableJerry, ModConfig.INSTANCE.enableIq,
+                ModConfig.INSTANCE.enableSleep
             };
             
-            for (int i = 0; i < cmdNames.length; i++) {
-                int cY = cmdY + i * SUBCMD_H;
-                if (mx >= px && mx < px + PANEL_W && my >= cY && my < cY + SUBCMD_H)
-                    g.fill(px, cY, px + PANEL_W, cY + SUBCMD_H, COL_HOVER);
-                g.fill(px, cY + SUBCMD_H - 1, px + PANEL_W, cY + SUBCMD_H, COL_SEP);
-                g.fill(px + INDENT_2, cY + SUBCMD_H / 2, px + INDENT_2 + 4, cY + SUBCMD_H / 2 + 1, 0x60BB55FF);
-                g.text(font, cmdNames[i], px + INDENT_2 + 7, cY + 2, COL_CMD);
+            for (int i = 0; i < funLabels.length; i++) {
+                int col = i % 2;
+                int row = i / 2;
+                int tx = cx + col * (cw / 2);
+                int ty = cy + row * 18;
                 
-                boolean isOn = cmdStates[i];
-                int pillW = 20, pillH = 7;
-                int pillX = px + PANEL_W - pillW - 5;
-                int pillY = cY + (SUBCMD_H - pillH) / 2;
-                g.fill(pillX, pillY, pillX + pillW, pillY + pillH, isOn ? COL_ON : COL_OFF);
-                g.fill(pillX, pillY, pillX + pillW, pillY + 1, 0x40FFFFFF);
-                int knobX = isOn ? pillX + pillW - pillH : pillX;
-                g.fill(knobX, pillY, knobX + pillH, pillY + pillH, 0xFFFFFFFF);
-            }
-        }
-
-        g.fill(px, py + totalH - 1, px + PANEL_W, py + totalH, 0x40BB55FF);
-    }
-
-    private void renderToggleRow(GuiGraphicsExtractor g,
-                                  net.minecraft.client.gui.Font font,
-                                  int px, int baseY, int i,
-                                  String label, boolean enabled,
-                                  int mx, int my) {
-        int ry  = baseY + i * ROW_H;
-        int ry2 = ry + ROW_H;
-
-        if (mx >= px && mx < px + PANEL_W && my >= ry && my < ry2)
-            g.fill(px, ry, px + PANEL_W, ry2, COL_HOVER);
-        g.fill(px, ry2 - 1, px + PANEL_W, ry2, COL_SEP);
-        g.fill(px + INDENT_1, ry + ROW_H / 2,
-                px + INDENT_1 + 4, ry + ROW_H / 2 + 1, 0x60BB55FF);
-        g.text(font, label, px + INDENT_1 + 7, ry + 2, COL_TEXT);
-
-        int pillW = 20, pillH = 7;
-        int pillX = px + PANEL_W - pillW - 5;
-        int pillY = ry + (ROW_H - pillH) / 2;
-        g.fill(pillX, pillY, pillX + pillW, pillY + pillH, enabled ? COL_ON : COL_OFF);
-        g.fill(pillX, pillY, pillX + pillW, pillY + 1, 0x40FFFFFF);
-        int knobX = enabled ? pillX + pillW - pillH : pillX;
-        g.fill(knobX, pillY, knobX + pillH, pillY + pillH, 0xFFFFFFFF);
-    }
-
-    // ── Panneau MISC ───────────────────────────────────────────────────────
-    private void renderMiscPanel(GuiGraphicsExtractor g, int px, int py, int mx, int my) {
-        var font = Minecraft.getInstance().font;
-        int dropH = (songConfigExpanded && platformDropdownOpen) ? (ROW_H * 4) : 0;
-        int presetDropH = (colorPickerExpanded && presetDropdownOpen) ? (ROW_H * com.songgka.client.color.NameColorManager.COLORS.length) : 0;
-        int totalH = HEADER_H + CAT_H + (colorPickerExpanded ? (ROW_H * (ModConfig.INSTANCE.enableGradient ? 4 : 3) + presetDropH + 96) : 0) + 
-                     CAT_H + (songConfigExpanded ? (ROW_H * 3 + dropH) : 0) +
-                     CAT_H + (sizeConfigExpanded ? (ROW_H * 3) : 0) +
-                     CAT_H + (ghostBlocksExpanded ? (ROW_H * 2 + (ghostBlockDropdownOpen ? ROW_H * 6 : 0)) : 0) + 4;
-
-        g.fill(px, py, px + PANEL_W, py + totalH, COL_BG);
-
-        // Header MISC
-        g.fill(px, py, px + PANEL_W, py + HEADER_H, COL_HDR_BG);
-        g.fill(px, py + HEADER_H - 1, px + PANEL_W, py + HEADER_H, COL_ACCENT);
-        g.text(font, "§l  ⚙  MISC", px + 6, py + 4, COL_HDR_FG);
-
-        int basey = py + HEADER_H;
-
-        // ── Catégorie 1 : Name Color ──
-        int cat1Y1 = basey;
-        int cat1Y2 = basey + CAT_H;
-        if (mx >= px && mx < px + PANEL_W && my >= cat1Y1 && my < cat1Y2)
-            g.fill(px, cat1Y1, px + PANEL_W, cat1Y2, COL_HOVER);
-        g.fill(px, cat1Y1, px + PANEL_W, cat1Y2, COL_CAT_BG);
-        g.fill(px, cat1Y1, px + 2, cat1Y2, colorPickerExpanded ? COL_ACCENT : 0x50BB55FF);
-        g.text(font, (colorPickerExpanded ? "§7▼ " : "§7▶ ") + "§bName Color",
-                px + INDENT_1, cat1Y1 + 3, COL_CAT_FG);
-        g.fill(px, cat1Y2 - 1, px + PANEL_W, cat1Y2, COL_SEP);
-
-        // Body Name Color (si déplié)
-        if (colorPickerExpanded) {
-            int r0y1 = cat1Y2;
-            int r0y2 = r0y1 + ROW_H;
-            if (mx >= px && mx < px + PANEL_W && my >= r0y1 && my < r0y2)
-                g.fill(px, r0y1, px + PANEL_W, r0y2, COL_HOVER);
-            g.fill(px, r0y2 - 1, px + PANEL_W, r0y2, COL_SEP);
-            g.fill(px + INDENT_1, r0y1 + ROW_H / 2, px + INDENT_1 + 4, r0y1 + ROW_H / 2 + 1, 0x60BB55FF);
-            g.text(font, "Enable", px + INDENT_1 + 7, r0y1 + 2, COL_TEXT);
-
-            // Toggle Pill for Activer
-            boolean enabled = ModConfig.INSTANCE.enableNameColor;
-            int pillW = 16, pillH = 7;
-            int pillX = px + PANEL_W - pillW - 5;
-            int pillY = r0y1 + (ROW_H - pillH) / 2;
-            g.fill(pillX, pillY, pillX + pillW, pillY + pillH, enabled ? COL_ON : COL_OFF);
-            int knobX = enabled ? pillX + pillW - pillH : pillX;
-            g.fill(knobX, pillY, knobX + pillH, pillY + pillH, 0xFFFFFFFF);
-
-            // Row for Preset Color dropdown
-            int r01y1 = r0y2;
-            int r01y2 = r01y1 + ROW_H;
-            if (mx >= px && mx < px + PANEL_W && my >= r01y1 && my < r01y2)
-                g.fill(px, r01y1, px + PANEL_W, r01y2, COL_HOVER);
-            g.fill(px, r01y2 - 1, px + PANEL_W, r01y2, COL_SEP);
-            g.fill(px + INDENT_1, r01y1 + ROW_H / 2, px + INDENT_1 + 4, r01y1 + ROW_H / 2 + 1, 0x60BB55FF);
-
-            var opt = com.songgka.client.color.NameColorManager.getCurrentOption();
-            String presetLabel = (presetDropdownOpen ? "§7▼ " : "§7▶ ") + "Preset: " + (opt != null ? opt.name : "?");
-            g.text(font, presetLabel, px + INDENT_1 + 7, r01y1 + 2, COL_TEXT);
-
-            // Dropdown items
-            int renderPresetDropH = 0;
-            if (presetDropdownOpen) {
-                var colors = com.songgka.client.color.NameColorManager.COLORS;
-                for (int i = 0; i < colors.length; i++) {
-                    int dy1 = r01y2 + i * ROW_H;
-                    int dy2 = dy1 + ROW_H;
-                    boolean isSelected = i == ModConfig.INSTANCE.nameColorIndex;
-                    g.fill(px, dy1, px + PANEL_W, dy2, isSelected ? 0x40BB55FF : 0xFF0D0820);
-                    if (mx >= px && mx < px + PANEL_W && my >= dy1 && my < dy2)
-                        g.fill(px, dy1, px + PANEL_W, dy2, COL_HOVER);
-                    g.fill(px, dy2 - 1, px + PANEL_W, dy2, COL_SEP);
-                    g.text(font, (isSelected ? "§d✔ " : "  ") + colors[i].name, px + INDENT_1 + 7, dy1 + 2, COL_TEXT);
+                boolean hover = (mx >= tx && mx < tx + 50 && my >= ty && my < ty + 14);
+                int color = funStates[i] ? COL_ON : (hover ? COL_HOVER : COL_OFF);
+                
+                if (funStates[i]) {
+                    RenderUtils.fillRoundedRect(g, tx - 1, ty - 1, 52, 16, 3, 0x449D00FF);
                 }
-                renderPresetDropH = colors.length * ROW_H;
+                
+                RenderUtils.fillRoundedRect(g, tx, ty, 50, 14, 2, color);
+                RenderUtils.drawGradientOutline(g, tx, ty, 50, 14, 2, 0x66FFFFFF, 0x11FFFFFF);
+                g.text(font, funLabels[i], tx + 4, ty + 3, COL_TEXT);
             }
+            
+        } else if (activeTab == 1) {
+            cy = renderToggle(g, font, cx, cy, cw, "Enable Name Color", ModConfig.INSTANCE.enableNameColor, mx, my);
+            
+            g.text(font, "Prefix: " + ModConfig.INSTANCE.customPrefix + (prefixInputFocused && (System.currentTimeMillis()/400%2==0)?"_":""), cx, cy + 6, prefixInputFocused ? COL_TEXT : COL_TEXT_DIM);
+            cy += ROW_H;
+            
+            g.text(font, "Suffix: " + ModConfig.INSTANCE.customSuffix + (suffixInputFocused && (System.currentTimeMillis()/400%2==0)?"_":""), cx, cy + 6, suffixInputFocused ? COL_TEXT : COL_TEXT_DIM);
+            cy += ROW_H;
 
-            int dropY = r01y2 + renderPresetDropH + 4;
-            int r02y1 = dropY;
-            int r02y2 = r02y1 + ROW_H;
-            if (mx >= px && mx < px + PANEL_W && my >= r02y1 && my < r02y2)
-                g.fill(px, r02y1, px + PANEL_W, r02y2, COL_HOVER);
-            g.fill(px, r02y2 - 1, px + PANEL_W, r02y2, COL_SEP);
-            g.fill(px + INDENT_1, r02y1 + ROW_H / 2, px + INDENT_1 + 4, r02y1 + ROW_H / 2 + 1, 0x60BB55FF);
-            g.text(font, "Enable Gradient", px + INDENT_1 + 7, r02y1 + 2, COL_TEXT);
-
-            boolean gradEnabled = ModConfig.INSTANCE.enableGradient;
-            int gPillW = 16, gPillH = 7;
-            int gPillX = px + PANEL_W - gPillW - 5;
-            int gPillY = r02y1 + (ROW_H - gPillH) / 2;
-            g.fill(gPillX, gPillY, gPillX + gPillW, gPillY + gPillH, gradEnabled ? COL_ON : COL_OFF);
-            int gKnobX = gradEnabled ? gPillX + gPillW - gPillH : gPillX;
-            g.fill(gKnobX, gPillY, gKnobX + gPillH, gPillY + gPillH, 0xFFFFFFFF);
-
-            int r03y1 = r02y2;
-            int r03y2 = r03y1 + ROW_H;
-            if (gradEnabled) {
-                if (mx >= px && mx < px + PANEL_W && my >= r03y1 && my < r03y2)
-                    g.fill(px, r03y1, px + PANEL_W, r03y2, COL_HOVER);
-                g.fill(px, r03y2 - 1, px + PANEL_W, r03y2, COL_SEP);
-                g.fill(px + INDENT_1, r03y1 + ROW_H / 2, px + INDENT_1 + 4, r03y1 + ROW_H / 2 + 1, 0x60BB55FF);
-                String editStr = editingColor2 ? "Editing: Color 2" : "Editing: Color 1";
-                g.text(font, editStr, px + INDENT_1 + 7, r03y1 + 2, COL_TEXT);
-                dropY = r03y2 + 4;
-            } else {
-                dropY = r02y2 + 4;
+            renderToggle(g, font, cx, cy, cw - 70, "Enable Gradient", ModConfig.INSTANCE.enableGradient, mx, my);
+            
+            if (ModConfig.INSTANCE.enableGradient) {
+                int bx = cx + cw - 60;
+                boolean bHover = (mx >= bx && mx < bx + 60 && my >= cy && my < cy + 18);
+                RenderUtils.fillRoundedRect(g, bx, cy, 60, 18, 4, bHover ? COL_HOVER : 0x55FFFFFF);
+                g.text(font, editingColor2 ? "Edit Col 2" : "Edit Col 1", bx + 4, cy + 5, COL_TEXT);
             }
+            cy += ROW_H;
+            
+            String curHex = editingColor2 && ModConfig.INSTANCE.enableGradient ? ModConfig.INSTANCE.customHexColor2 : ModConfig.INSTANCE.customHexColor;
+            g.text(font, "Hex: " + curHex + (hexInputFocused && (System.currentTimeMillis()/400%2==0)?"_":""), cx, cy + 6, hexInputFocused ? COL_TEXT : COL_TEXT_DIM);
+            cy += ROW_H;
 
-            int boxX = px + INDENT_1;
-            int boxY = dropY;
-            int boxW = PANEL_W - INDENT_1 * 2;
-            int boxH = 55;
-
-            // 1. 2D Saturation / Value Box
-            String curHex = editingColor2 && gradEnabled ? ModConfig.INSTANCE.customHexColor2 : ModConfig.INSTANCE.customHexColor;
-            int currentRgb = 0xFF55AA;
-            float currentSat = 1.0f, currentVal = 1.0f;
-            if (curHex != null && curHex.startsWith("#") && curHex.length() == 7) {
+            int boxW = 80;
+            int boxH = 40;
+            
+            int previewColor = 0xFFFFFFFF;
+            if (curHex != null && curHex.length() == 7 && curHex.startsWith("#")) {
                 try {
-                    currentRgb = Integer.parseInt(curHex.substring(1), 16);
-                    float[] hsb = java.awt.Color.RGBtoHSB((currentRgb >> 16) & 0xFF, (currentRgb >> 8) & 0xFF, currentRgb & 0xFF, null);
-                    selectedHue = hsb[0];
-                    currentSat = hsb[1];
-                    currentVal = hsb[2];
-                } catch (Exception ignored) {}
+                    previewColor = 0xFF000000 | Integer.parseInt(curHex.substring(1), 16);
+                } catch (Exception e) {}
             }
-
-            for (int x = 0; x < boxW; x += 3) {
-                float sat = (float) x / (float) boxW;
-                for (int y = 0; y < boxH; y += 3) {
-                    float val = 1.0f - ((float) y / (float) boxH);
-                    int rgb = java.awt.Color.HSBtoRGB(selectedHue, sat, val);
-                    g.fill(boxX + x, boxY + y, Math.min(boxX + boxW, boxX + x + 3), Math.min(boxY + boxH, boxY + y + 3), rgb | 0xFF000000);
-                }
-            }
-
-            // Outer border
-            g.fill(boxX - 1, boxY - 1, boxX + boxW + 1, boxY, 0xFF353545);
-            g.fill(boxX - 1, boxY + boxH, boxX + boxW + 1, boxY + boxH + 1, 0xFF353545);
-            g.fill(boxX - 1, boxY, boxX, boxY + boxH, 0xFF353545);
-            g.fill(boxX + boxW, boxY, boxX + boxW + 1, boxY + boxH, 0xFF353545);
-
-            // Circular Pin Handle
-            int handleX = boxX + Math.round(currentSat * boxW);
-            int handleY = boxY + Math.round((1.0f - currentVal) * boxH);
-            g.fill(handleX - 3, handleY - 3, handleX + 4, handleY + 4, 0xFFFFFFFF);
-            g.fill(handleX - 2, handleY - 2, handleX + 3, handleY + 3, currentRgb | 0xFF000000);
-
-            // 2. 1D Hue Spectrum Slider Bar
-            int hueX = boxX;
-            int hueY = boxY + boxH + 5;
-            int hueW = boxW;
-            int hueH = 9;
-
+            
+            RenderUtils.fillRoundedRect(g, cx, cy, boxW, boxH, 4, previewColor);
+            g.text(font, "Preview Color", cx + boxW + 10, cy + 15, COL_TEXT);
+            cy += boxH + 5;
+            
+            int hueW = cw;
+            int hueH = 10;
+            
+            g.text(font, "Hue", cx, cy, COL_TEXT_DIM); cy += 10;
             for (int i = 0; i < hueW; i++) {
-                float h = (float) i / (float) hueW;
-                int rgb = java.awt.Color.HSBtoRGB(h, 1.0f, 1.0f);
-                g.fill(hueX + i, hueY, hueX + i + 1, hueY + hueH, rgb | 0xFF000000);
+                int c = java.awt.Color.HSBtoRGB((float)i / hueW, 1.0f, 1.0f) | 0xFF000000;
+                g.fill(cx + i, cy, cx + i + 1, cy + hueH, c);
             }
-
-            int huePinX = hueX + Math.round(selectedHue * hueW);
-            g.fill(huePinX - 3, hueY - 1, huePinX + 4, hueY + hueH + 1, 0xFFFFFFFF);
-            int pureHueRgb = java.awt.Color.HSBtoRGB(selectedHue, 1.0f, 1.0f);
-            g.fill(huePinX - 2, hueY, huePinX + 3, hueY + hueH, pureHueRgb | 0xFF000000);
-
-            // 3. Hex Code Input Box
-            int hexX = boxX + 15;
-            int hexY = hueY + hueH + 5;
-            int hexW = boxW - 30;
-            int hexH = 13;
-
-            g.fill(hexX, hexY, hexX + hexW, hexY + hexH, 0xFF12121A);
-            int borderCol = hexInputFocused ? 0xFFBB55FF : 0xFF353545;
-            g.fill(hexX, hexY, hexX + hexW, hexY + 1, borderCol);
-            g.fill(hexX, hexY + hexH - 1, hexX + hexW, hexY + hexH, borderCol);
-            g.fill(hexX, hexY, hexX + 1, hexY + hexH, borderCol);
-            g.fill(hexX + hexW - 1, hexY, hexX + hexW, hexY + hexH, borderCol);
-
-            String displayVal = (curHex != null && curHex.startsWith("#") ? curHex.substring(1) : "FF55AA");
-            boolean cursorVisible = hexInputFocused && (System.currentTimeMillis() / 400 % 2 == 0);
-            g.text(font, displayVal + (cursorVisible ? "§f|" : ""), hexX + 8, hexY + 2, COL_TEXT);
-        }
-
-        // ── Catégorie 2 : Player Size ──
-        int cat2Y1 = cat1Y2 + (colorPickerExpanded ? (ROW_H * (ModConfig.INSTANCE.enableGradient ? 4 : 3) + presetDropH + 96) : 0);
-        int cat2Y2 = cat2Y1 + CAT_H;
-
-        if (mx >= px && mx < px + PANEL_W && my >= cat2Y1 && my < cat2Y2)
-            g.fill(px, cat2Y1, px + PANEL_W, cat2Y2, COL_HOVER);
-        g.fill(px, cat2Y1, px + PANEL_W, cat2Y2, COL_CAT_BG);
-        g.fill(px, cat2Y1, px + 2, cat2Y2, sizeConfigExpanded ? COL_ACCENT : 0x50BB55FF);
-        g.text(font, (sizeConfigExpanded ? "§7▼ " : "§7▶ ") + "§bPlayer Size",
-                px + INDENT_1, cat2Y1 + 3, COL_CAT_FG);
-        g.fill(px, cat2Y2 - 1, px + PANEL_W, cat2Y2, COL_SEP);
-
-        if (sizeConfigExpanded) {
-            int ry = cat2Y2;
-            if (mx >= px && mx < px + PANEL_W && my >= ry && my < ry + ROW_H) g.fill(px, ry, px + PANEL_W, ry + ROW_H, COL_HOVER);
-            g.fill(px, ry + ROW_H - 1, px + PANEL_W, ry + ROW_H, COL_SEP);
-            g.fill(px + INDENT_1, ry + ROW_H / 2, px + INDENT_1 + 4, ry + ROW_H / 2 + 1, 0x60BB55FF);
-            g.text(font, "Enable", px + INDENT_1 + 7, ry + 2, COL_TEXT);
-
-            // Toggle Pill for Player Size
-            boolean sizeEnabled = ModConfig.INSTANCE.playerSizeEnabled;
-            int pillW = 16, pillH = 7;
-            int pillX = px + PANEL_W - pillW - 5;
-            int pillY = ry + (ROW_H - pillH) / 2;
-            g.fill(pillX, pillY, pillX + pillW, pillY + pillH, sizeEnabled ? COL_ON : COL_OFF);
-            int knobX = sizeEnabled ? pillX + pillW - pillH : pillX;
-            g.fill(knobX, pillY, knobX + pillH, pillY + pillH, 0xFFFFFFFF);
-
-            renderSizeSlider(g, font, px, cat2Y2 + ROW_H,   "Size X", ModConfig.INSTANCE.playerSizeX, mx, my, 0);
-            renderSizeSlider(g, font, px, cat2Y2 + 2*ROW_H, "Size Y", ModConfig.INSTANCE.playerSizeY, mx, my, 1);
-            renderSizeSlider(g, font, px, cat2Y2 + 3*ROW_H, "Size Z", ModConfig.INSTANCE.playerSizeZ, mx, my, 2);
-        }
-
-        // ── Catégorie 3 : Song Config ──
-        int cat3Y1 = cat2Y2 + (sizeConfigExpanded ? (ROW_H * 4) : 0);
-        int cat3Y2 = cat3Y1 + CAT_H;
-
-        if (mx >= px && mx < px + PANEL_W && my >= cat3Y1 && my < cat3Y2)
-            g.fill(px, cat3Y1, px + PANEL_W, cat3Y2, COL_HOVER);
-        g.fill(px, cat3Y1, px + PANEL_W, cat3Y2, COL_CAT_BG);
-        g.fill(px, cat3Y1, px + 2, cat3Y2, songConfigExpanded ? COL_ACCENT : 0x50BB55FF);
-        g.text(font, (songConfigExpanded ? "§7▼ " : "§7▶ ") + "§bSong Config",
-                px + INDENT_1, cat3Y1 + 3, COL_CAT_FG);
-        g.fill(px, cat3Y2 - 1, px + PANEL_W, cat3Y2, COL_SEP);
-
-        // Body Song Config (si déplié)
-        if (songConfigExpanded) {
-            int r1y1 = cat3Y2;
-            int r1y2 = r1y1 + ROW_H;
-            if (mx >= px && mx < px + PANEL_W && my >= r1y1 && my < r1y2)
-                g.fill(px, r1y1, px + PANEL_W, r1y2, COL_HOVER);
-            g.fill(px, r1y2 - 1, px + PANEL_W, r1y2, COL_SEP);
-            g.fill(px + INDENT_1, r1y1 + ROW_H / 2, px + INDENT_1 + 4, r1y1 + ROW_H / 2 + 1, 0x60BB55FF);
-
-            String providerStr = ModConfig.INSTANCE.musicProvider != null ? ModConfig.INSTANCE.musicProvider : "None";
-            String arrow = platformDropdownOpen ? "§7▼" : "§7▶";
-            g.text(font, "Platform: §e" + providerStr + " " + arrow, px + INDENT_1 + 7, r1y1 + 2, COL_TEXT);
-
-            int currentY = r1y2;
-
-            if (platformDropdownOpen) {
-                String[] options = new String[]{"None", "YouTube Music", "Spotify", "Deezer"};
-                for (int i = 0; i < options.length; i++) {
-                    int optY1 = currentY;
-                    int optY2 = optY1 + ROW_H;
-                    if (mx >= px && mx < px + PANEL_W && my >= optY1 && my < optY2)
-                        g.fill(px, optY1, px + PANEL_W, optY2, COL_HOVER);
-                    g.fill(px, optY2 - 1, px + PANEL_W, optY2, COL_SEP);
-
-                    boolean isSelected = options[i].equalsIgnoreCase(providerStr);
-                    String prefix = isSelected ? "  §a✔ " : "    ";
-                    g.text(font, prefix + "§f" + options[i], px + INDENT_2, optY1 + 2, isSelected ? 0xFF55FF55 : COL_TEXT);
-                    currentY = optY2;
+            int pickerX = cx + (int)(selectedHue * hueW);
+            pickerX = Math.max(cx, Math.min(cx + hueW - 3, pickerX));
+            g.fill(pickerX - 1, cy - 2, pickerX + 2, cy + hueH + 2, 0xFFFFFFFF);
+            cy += hueH + 6;
+            
+            g.text(font, "Saturation", cx, cy, COL_TEXT_DIM); cy += 10;
+            for (int i = 0; i < hueW; i++) {
+                int c = java.awt.Color.HSBtoRGB(selectedHue, (float)i / hueW, selectedVal) | 0xFF000000;
+                g.fill(cx + i, cy, cx + i + 1, cy + hueH, c);
+            }
+            pickerX = cx + (int)(selectedSat * hueW);
+            pickerX = Math.max(cx, Math.min(cx + hueW - 3, pickerX));
+            g.fill(pickerX - 1, cy - 2, pickerX + 2, cy + hueH + 2, 0xFFFFFFFF);
+            cy += hueH + 6;
+            
+            g.text(font, "Brightness", cx, cy, COL_TEXT_DIM); cy += 10;
+            for (int i = 0; i < hueW; i++) {
+                int c = java.awt.Color.HSBtoRGB(selectedHue, selectedSat, (float)i / hueW) | 0xFF000000;
+                g.fill(cx + i, cy, cx + i + 1, cy + hueH, c);
+            }
+            pickerX = cx + (int)(selectedVal * hueW);
+            pickerX = Math.max(cx, Math.min(cx + hueW - 3, pickerX));
+            g.fill(pickerX - 1, cy - 2, pickerX + 2, cy + hueH + 2, 0xFFFFFFFF);
+            cy += hueH + 5;
+            
+        } else if (activeTab == 2) {
+            cy = renderToggle(g, font, cx, cy, cw, "Enable Size Editing", ModConfig.INSTANCE.playerSizeEnabled, mx, my);
+            cy = renderSlider(g, font, cx, cy, cw, "Size X", ModConfig.INSTANCE.playerSizeX, mx, my, 0);
+            cy = renderSlider(g, font, cx, cy, cw, "Size Y", ModConfig.INSTANCE.playerSizeY, mx, my, 1);
+            cy = renderSlider(g, font, cx, cy, cw, "Size Z", ModConfig.INSTANCE.playerSizeZ, mx, my, 2);
+            
+            int bx = cx;
+            boolean bHover = (mx >= bx && mx < bx + 100 && my >= cy && my < cy + 20);
+            RenderUtils.fillRoundedRect(g, bx, cy, 100, 20, 4, bHover ? COL_HOVER : 0x55FFFFFF);
+            g.text(font, "Reset Size", bx + 22, cy + 6, COL_TEXT);
+        } else if (activeTab == 3) {
+            cy = renderToggle(g, font, cx, cy, cw, "Custom Blocks (F7/M7)", GhostBlockManager.isGhostBlocksEnabled, mx, my);
+            cy = renderToggle(g, font, cx, cy, cw, "Enable Glass Panes", GhostBlockManager.isGlassGhostBlocksEnabled, mx, my);
+            cy = renderToggle(g, font, cx, cy, cw, "Auto Update (juste visuel pour l'instant)", ModConfig.INSTANCE.enableAutoUpdate, mx, my);
+            cy += 5;
+            
+            g.text(font, "Music Provider:", cx, cy + 6, COL_TEXT);
+            int bx = cx + 90;
+            int bw = 80;
+            boolean bHover = (mx >= bx && mx < bx + bw && my >= cy && my < cy + 18);
+            RenderUtils.fillRoundedRect(g, bx, cy, bw, 18, 4, bHover ? COL_HOVER : 0x55FFFFFF);
+            g.text(font, ModConfig.INSTANCE.musicProvider != null ? ModConfig.INSTANCE.musicProvider : "None", bx + 6, cy + 5, COL_TEXT);
+            
+            if (providerDropdownOpen) {
+                String[] plats = {"None", "YTM", "Spotify", "Deezer"};
+                for (int i = 0; i < plats.length; i++) {
+                    int dy = cy + 18 + i * 18;
+                    boolean dHover = (mx >= bx && mx < bx + bw && my >= dy && my < dy + 18);
+                    RenderUtils.fillRoundedRect(g, bx, dy, bw, 18, 0, dHover ? COL_HOVER : 0xEE222222);
+                    g.text(font, plats[i], bx + 6, dy + 5, COL_TEXT);
                 }
             }
-
-            int r2y1 = currentY;
-            int r2y2 = r2y1 + ROW_H;
-            g.fill(px, r2y2 - 1, px + PANEL_W, r2y2, COL_SEP);
-            g.fill(px + INDENT_1, r2y1 + ROW_H / 2, px + INDENT_1 + 4, r2y1 + ROW_H / 2 + 1, 0x60BB55FF);
-
-            boolean isNone = "None".equalsIgnoreCase(providerStr);
-            boolean isNativeWin = "Deezer".equalsIgnoreCase(providerStr) || "Spotify".equalsIgnoreCase(providerStr);
-            boolean isConnected = isNativeWin || (ModConfig.INSTANCE.authToken != null && !ModConfig.INSTANCE.authToken.isEmpty());
-
-            String statusText = isNone ? "§7None Selected" : (isNativeWin ? "§aWindows Native" : (isConnected ? "§aConnected" : "§cDisconnected"));
-            g.text(font, "Status: " + statusText, px + INDENT_1 + 7, r2y1 + 2, COL_TEXT);
-
-            int r3y1 = r2y2;
-            int r3y2 = r3y1 + ROW_H;
-            if (mx >= px && mx < px + PANEL_W && my >= r3y1 && my < r3y2)
-                g.fill(px, r3y1, px + PANEL_W, r3y2, COL_HOVER);
-            g.fill(px, r3y2 - 1, px + PANEL_W, r3y2, COL_SEP);
-            g.fill(px + INDENT_1, r3y1 + ROW_H / 2, px + INDENT_1 + 4, r3y1 + ROW_H / 2 + 1, 0x60BB55FF);
-
-            String actionText = isNone ? "§7Select a platform above" : (isNativeWin ? "§7Auto-detection enabled" : "§e🔗 Connect " + providerStr);
-            g.text(font, actionText, px + INDENT_1 + 7, r3y1 + 2, COL_TEXT);
         }
+    }
+
+    private int renderToggle(GuiGraphicsExtractor g, net.minecraft.client.gui.Font font, int x, int y, int w, String label, boolean state, int mx, int my) {
+        g.text(font, label, x, y + 6, COL_TEXT);
         
-        dropH = (songConfigExpanded && platformDropdownOpen) ? (ROW_H * 4) : 0;
-        totalH = cat3Y2 - py;
-        if (songConfigExpanded) {
-            totalH += ROW_H * 3 + dropH;
-        }
+        int pillW = 30;
+        int pillH = 14;
+        int pillX = x + w - pillW - 10;
+        int pillY = y + 4;
+        
+        RenderUtils.fillRoundedRect(g, pillX, pillY, pillW, pillH, 7, state ? COL_ON : COL_OFF);
+        RenderUtils.drawGradientOutline(g, pillX, pillY, pillW, pillH, 7, 0x33000000, 0x11000000);
+        
+        int knobSize = 10;
+        int knobX = state ? (pillX + pillW - knobSize - 2) : (pillX + 2);
+        RenderUtils.fillRoundedRect(g, knobX, pillY + 3, knobSize, knobSize, 5, 0x33000000);
+        RenderUtils.fillRoundedRect(g, knobX, pillY + 2, knobSize, knobSize, 5, 0xFFFFFFFF);
+        
+        return y + ROW_H;
+    }
 
-        // ── Catégorie 4 : Custom Blocks ──
-        int cat4Y1 = cat3Y2 + (songConfigExpanded ? (ROW_H * 3 + dropH) : 0);
-        int cat4Y2 = cat4Y1 + CAT_H;
+    private int renderSlider(GuiGraphicsExtractor g, net.minecraft.client.gui.Font font, int x, int y, int w, String label, float val, int mx, int my, int id) {
+        g.text(font, label + String.format(": %.2f", val), x, y + 2, COL_TEXT);
+        
+        int trackY = y + 14;
+        RenderUtils.fillRoundedRect(g, x, trackY, w, 4, 2, 0x55FFFFFF);
+        
+        float pct = (val + 1.0f) / 4.0f; // domain [-1, 3] -> [0, 1]
+        pct = Math.max(0, Math.min(1, pct));
+        
+        RenderUtils.fillRoundedRect(g, x, trackY, (int)(w * pct), 4, 2, COL_ACCENT);
+        
+        int knobX = x + (int)(w * pct) - 4;
+        RenderUtils.fillRoundedRect(g, knobX, trackY - 3, 8, 10, 4, 0xFFFFFFFF);
+        
+        return y + 26;
+    }
 
-        if (mx >= px && mx < px + PANEL_W && my >= cat4Y1 && my < cat4Y2)
-            g.fill(px, cat4Y1, px + PANEL_W, cat4Y2, COL_HOVER);
-        g.fill(px, cat4Y1, px + PANEL_W, cat4Y2, COL_CAT_BG);
-        g.fill(px, cat4Y1, px + 2, cat4Y2, ghostBlocksExpanded ? COL_ACCENT : 0x50BB55FF);
-        g.text(font, (ghostBlocksExpanded ? "§7▼ " : "§7▶ ") + "§bCustom Blocks",
-                px + INDENT_1, cat4Y1 + 3, COL_CAT_FG);
-        g.fill(px, cat4Y2 - 1, px + PANEL_W, cat4Y2, COL_SEP);
 
-        if (ghostBlocksExpanded) {
-            int r1y1 = cat4Y2;
-            int r1y2 = r1y1 + ROW_H;
-            if (mx >= px && mx < px + PANEL_W && my >= r1y1 && my < r1y2)
-                g.fill(px, r1y1, px + PANEL_W, r1y2, COL_HOVER);
-            g.fill(px, r1y2 - 1, px + PANEL_W, r1y2, COL_SEP);
-            g.fill(px + INDENT_1, r1y1 + ROW_H / 2, px + INDENT_1 + 4, r1y1 + ROW_H / 2 + 1, 0x60BB55FF);
-            g.text(font, "Enable", px + INDENT_1 + 7, r1y1 + 2, COL_TEXT);
-
-            boolean enabled = com.songgka.client.features.GhostBlockManager.isGhostBlocksEnabled;
-            int pillW = 16, pillH = 7;
-            int pillX = px + PANEL_W - pillW - 5;
-            int pillY = r1y1 + (ROW_H - pillH) / 2;
-            g.fill(pillX, pillY, pillX + pillW, pillY + pillH, enabled ? COL_ON : COL_OFF);
-            int knobX = enabled ? pillX + pillW - pillH : pillX;
-            g.fill(knobX, pillY, knobX + pillH, pillY + pillH, 0xFFFFFFFF);
-
-            int r2y1 = r1y2;
-            int r2y2 = r2y1 + ROW_H;
-            if (mx >= px && mx < px + PANEL_W && my >= r2y1 && my < r2y2)
-                g.fill(px, r2y1, px + PANEL_W, r2y2, COL_HOVER);
-            g.fill(px, r2y2 - 1, px + PANEL_W, r2y2, COL_SEP);
-            g.fill(px + INDENT_1, r2y1 + ROW_H / 2, px + INDENT_1 + 4, r2y1 + ROW_H / 2 + 1, 0x60BB55FF);
-            g.text(font, "Glass Pad", px + INDENT_1 + 7, r2y1 + 2, COL_TEXT);
-
-            boolean glassEnabled = com.songgka.client.features.GhostBlockManager.isGlassGhostBlocksEnabled;
-            int gPillY = r2y1 + (ROW_H - pillH) / 2;
-            g.fill(pillX, gPillY, pillX + pillW, gPillY + pillH, glassEnabled ? COL_ON : COL_OFF);
-            int gKnobX = glassEnabled ? pillX + pillW - pillH : pillX;
-            g.fill(gKnobX, gPillY, gKnobX + pillH, gPillY + pillH, 0xFFFFFFFF);
-
-            totalH += ROW_H * 2 + CAT_H;
+    private void updateColorFromSliders() {
+        int rgb = java.awt.Color.HSBtoRGB(selectedHue, selectedSat, selectedVal) & 0xFFFFFF;
+        String hex = String.format("#%06X", rgb);
+        if (editingColor2 && ModConfig.INSTANCE.enableGradient) {
+            ModConfig.INSTANCE.customHexColor2 = hex;
         } else {
-            totalH += CAT_H;
+            ModConfig.INSTANCE.customHexColor = hex;
+        }
+    }
+
+    @Override
+    public boolean mouseDragged(MouseButtonEvent event, double dragX, double dragY) {
+        // Fix coordinates scale
+        double scale = Minecraft.getInstance().getWindow().getGuiScale();
+        int mx = (int) (Minecraft.getInstance().mouseHandler.xpos() * (double)this.width / (double)Minecraft.getInstance().getWindow().getScreenWidth());
+        int my = (int) (Minecraft.getInstance().mouseHandler.ypos() * (double)this.height / (double)Minecraft.getInstance().getWindow().getScreenHeight());
+        
+        int px = (this.width - WIN_W) / 2;
+        int py = (this.height - WIN_H) / 2;
+        int cx = px + SIDEBAR_W + 15;
+        int cy = py + 35;
+        int cw = WIN_W - SIDEBAR_W - 30;
+
+        if (draggingSlider == 0 || draggingSlider == 1 || draggingSlider == 2) {
+            float newPct = (float)(mx - cx) / cw;
+            newPct = Math.max(0, Math.min(1, newPct));
+            float newVal = -1.0f + newPct * 4.0f;
+            if (draggingSlider == 0) ModConfig.INSTANCE.playerSizeX = newVal;
+            if (draggingSlider == 1) ModConfig.INSTANCE.playerSizeY = newVal;
+            if (draggingSlider == 2) ModConfig.INSTANCE.playerSizeZ = newVal;
+        } else if (draggingSlider == 3) {
+            selectedHue = Math.max(0, Math.min(1, (float)(mx - cx) / cw));
+            updateColorFromSliders();
+        } else if (draggingSlider == 4) {
+            selectedSat = Math.max(0, Math.min(1, (float)(mx - cx) / cw));
+            updateColorFromSliders();
+        } else if (draggingSlider == 5) {
+            selectedVal = Math.max(0, Math.min(1, (float)(mx - cx) / cw));
+            updateColorFromSliders();
         }
 
-        g.fill(px, py + totalH - 1, px + PANEL_W, py + totalH, 0x40BB55FF);
+        return super.mouseDragged(event, dragX, dragY);
     }
-    
-    private void renderSizeSlider(GuiGraphicsExtractor g, net.minecraft.client.gui.Font font, int px, int ry, String label, float value, int mx, int my, int index) {
-        int ry2 = ry + ROW_H;
-        if (mx >= px && mx < px + PANEL_W && my >= ry && my < ry2)
-            g.fill(px, ry, px + PANEL_W, ry2, COL_HOVER);
-        g.fill(px, ry2 - 1, px + PANEL_W, ry2, COL_SEP);
-        
-        g.text(font, label, px + INDENT_1, ry + 2, COL_TEXT);
-        
-        String valStr = String.format(java.util.Locale.US, "%.2f", value);
-        int valW = font.width(valStr);
-        g.text(font, valStr, px + PANEL_W - valW - INDENT_1, ry + 2, COL_TEXT);
-        
-        int sliderX = px + PANEL_W / 3;
-        int sliderW = PANEL_W / 2;
-        int sliderY = ry + ROW_H / 2;
-        
-        g.fill(sliderX, sliderY, sliderX + sliderW, sliderY + 1, 0xFF555555);
-        
-        float pct = (value - (-1.0f)) / (3.0f - (-1.0f));
-        int knobX = sliderX + (int)(pct * sliderW);
-        
-        g.fill(sliderX, sliderY, knobX, sliderY + 1, COL_ACCENT);
-        g.fill(knobX - 2, sliderY - 2, knobX + 2, sliderY + 3, 0xFFFFFFFF);
-    }
-
-    // ── CLICS ──────────────────────────────────────────────────────────────
 
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean focused) {
-        int mx = (int) event.x();
-        int my = (int) event.y();
-        hexInputFocused = false;
-
-        if (mx >= commandeX && mx < commandeX + PANEL_W) {
-
-            // Niveau 1 : Party Commands
-            int catY = START_Y + HEADER_H;
-            if (my >= catY && my < catY + CAT_H) {
-                partyCmdExpanded = !partyCmdExpanded;
-                if (!partyCmdExpanded) cmdExpanded = false;
+        // Use exact scaled coordinates so hitboxes match perfectly
+        int mx = (int) (Minecraft.getInstance().mouseHandler.xpos() * (double)this.width / (double)Minecraft.getInstance().getWindow().getScreenWidth());
+        int my = (int) (Minecraft.getInstance().mouseHandler.ypos() * (double)this.height / (double)Minecraft.getInstance().getWindow().getScreenHeight());
+        
+        int px = (this.width - WIN_W) / 2;
+        int py = (this.height - WIN_H) / 2;
+        
+        int tabY = py + 40;
+        for (int i = 0; i < 4; i++) {
+            if (mx >= px && mx < px + SIDEBAR_W && my >= tabY && my < tabY + ROW_H) {
+                activeTab = i;
+                hexInputFocused = prefixInputFocused = suffixInputFocused = false;
+                providerDropdownOpen = false;
                 return true;
             }
-
-            if (partyCmdExpanded) {
-                int toggleBase = catY + CAT_H;
-
-                // Toggles All/Guild/Party Chat
-                if (my >= toggleBase && my < toggleBase + ROW_H) {
-                    ModConfig.INSTANCE.enableAc = !ModConfig.INSTANCE.enableAc;
-                    ModConfig.INSTANCE.save(); return true;
-                }
-                if (my >= toggleBase + ROW_H && my < toggleBase + ROW_H * 2) {
-                    ModConfig.INSTANCE.enableGc = !ModConfig.INSTANCE.enableGc;
-                    ModConfig.INSTANCE.save(); return true;
-                }
-                if (my >= toggleBase + ROW_H * 2 && my < toggleBase + ROW_H * 3) {
-                    ModConfig.INSTANCE.enablePc = !ModConfig.INSTANCE.enablePc;
-                    ModConfig.INSTANCE.save(); return true;
-                }
-
-                // Niveau 2 : Commands
-                int subY = toggleBase + 3 * ROW_H;
-                if (my >= subY && my < subY + SUBCAT_H) {
-                    cmdExpanded = !cmdExpanded;
-                    return true;
-                }
-
-                if (cmdExpanded) {
-                    int cmdY = subY + SUBCAT_H;
-                    if (my >= cmdY && my < cmdY + 10 * SUBCMD_H) {
-                        int idx = (my - cmdY) / SUBCMD_H;
-                        switch (idx) {
-                            case 0 -> ModConfig.INSTANCE.enableSong = !ModConfig.INSTANCE.enableSong;
-                            case 1 -> ModConfig.INSTANCE.enableMeow = !ModConfig.INSTANCE.enableMeow;
-                            case 2 -> ModConfig.INSTANCE.enableWanted = !ModConfig.INSTANCE.enableWanted;
-                            case 3 -> ModConfig.INSTANCE.enableKiss = !ModConfig.INSTANCE.enableKiss;
-                            case 4 -> ModConfig.INSTANCE.enableFeed = !ModConfig.INSTANCE.enableFeed;
-                            case 5 -> ModConfig.INSTANCE.enablePoke = !ModConfig.INSTANCE.enablePoke;
-                            case 6 -> ModConfig.INSTANCE.enablePat = !ModConfig.INSTANCE.enablePat;
-                            case 7 -> ModConfig.INSTANCE.enableHug = !ModConfig.INSTANCE.enableHug;
-                            case 8 -> ModConfig.INSTANCE.enableSus = !ModConfig.INSTANCE.enableSus;
-                            case 9 -> ModConfig.INSTANCE.enableRizz = !ModConfig.INSTANCE.enableRizz;
-                        }
-                        ModConfig.INSTANCE.save();
-                        return true;
-                    }
-                }
-            }
-        } else if (mx >= miscX && mx < miscX + PANEL_W) {
-            int basey = START_Y + HEADER_H;
-            int cat1Y1 = basey;
-            int cat1Y2 = basey + CAT_H;
-
-            // Catégorie 1 : Couleur Pseudo
-            if (my >= cat1Y1 && my < cat1Y2) {
-                colorPickerExpanded = !colorPickerExpanded;
-                return true;
-            }
-
-            if (colorPickerExpanded) {
-                int r0y1 = cat1Y2;
-                int r0y2 = cat1Y2 + ROW_H;
-
-                // Sub-row 1 : Toggle Activer
-                if (my >= r0y1 && my < r0y2) {
-                    ModConfig.INSTANCE.enableNameColor = !ModConfig.INSTANCE.enableNameColor;
-                    ModConfig.INSTANCE.save();
-                    com.songgka.client.color.NameColorManager.syncLocalPlayerColor();
-                    return true;
-                }
-
-                int r01y1 = r0y2;
-                int r01y2 = r01y1 + ROW_H;
-
-                // Sub-row 2 : Preset dropdown toggle
-                if (my >= r01y1 && my < r01y2) {
-                    presetDropdownOpen = !presetDropdownOpen;
-                    return true;
-                }
-
-                // Dropdown items
-                int presetDropH = 0;
-                if (presetDropdownOpen) {
-                    var colors = com.songgka.client.color.NameColorManager.COLORS;
-                    for (int i = 0; i < colors.length; i++) {
-                        int dy1 = r01y2 + i * ROW_H;
-                        int dy2 = dy1 + ROW_H;
-                        if (my >= dy1 && my < dy2) {
-                            ModConfig.INSTANCE.nameColorIndex = i;
-                            ModConfig.INSTANCE.save();
-                            presetDropdownOpen = false;
-                            com.songgka.client.color.NameColorManager.syncLocalPlayerColor();
-                            return true;
-                        }
-                    }
-                    presetDropH = colors.length * ROW_H;
-                }
-
-                int r02y1 = r01y2 + presetDropH + 4;
-                int r02y2 = r02y1 + ROW_H;
-                if (my >= r02y1 && my < r02y2) {
-                    ModConfig.INSTANCE.enableGradient = !ModConfig.INSTANCE.enableGradient;
-                    ModConfig.INSTANCE.save();
-                    return true;
-                }
-
-                int r03y1 = r02y2;
-                int r03y2 = r03y1 + ROW_H;
-                int dropY = r02y2 + 4;
-                if (ModConfig.INSTANCE.enableGradient) {
-                    if (my >= r03y1 && my < r03y2) {
-                        editingColor2 = !editingColor2;
-                        return true;
-                    }
-                    dropY = r03y2 + 4;
-                }
-
-                int boxX = miscX + INDENT_1;
-                int boxY = dropY;
-                int boxW = PANEL_W - INDENT_1 * 2;
-                int boxH = 55;
-
-                // 1. Click on 2D SV Box
-                if (mx >= boxX && mx < boxX + boxW && my >= boxY && my < boxY + boxH) {
-                    updateColorFromSV(mx - boxX, my - boxY, boxW, boxH);
-                    return true;
-                }
-
-                // 2. Click on 1D Hue Bar
-                int hueX = boxX;
-                int hueY = boxY + boxH + 5;
-                int hueW = boxW;
-                int hueH = 9;
-
-                if (mx >= hueX && mx < hueX + hueW && my >= hueY && my < hueY + hueH) {
-                    updateColorFromHue(mx - hueX, hueW);
-                    return true;
-                }
-
-                // 3. Click on Hex Input Box
-                int hexX = boxX + 15;
-                int hexY = hueY + hueH + 5;
-                int hexW = boxW - 30;
-                int hexH = 13;
-
-                if (mx >= hexX && mx < hexX + hexW && my >= hexY && my < hexY + hexH) {
-                    hexInputFocused = true;
-                    return true;
-                }
-            }
-
-            // Catégorie 2 : Player Size
-            int cat2Y1 = cat1Y2 + (colorPickerExpanded ? (ROW_H * (ModConfig.INSTANCE.enableGradient ? 4 : 3) + (presetDropdownOpen ? com.songgka.client.color.NameColorManager.COLORS.length * ROW_H : 0) + 96) : 0);
-            int cat2Y2 = cat2Y1 + CAT_H;
-
-            if (my >= cat2Y1 && my < cat2Y2) {
-                sizeConfigExpanded = !sizeConfigExpanded;
-                return true;
-            }
-
-            if (sizeConfigExpanded) {
-                int ryToggle = cat2Y2;
-                if (my >= ryToggle && my < ryToggle + ROW_H) {
-                    ModConfig.INSTANCE.playerSizeEnabled = !ModConfig.INSTANCE.playerSizeEnabled;
-                    ModConfig.INSTANCE.save();
-                    return true;
-                }
-
-                int sliderX = miscX + PANEL_W / 3;
-                int sliderW = PANEL_W / 2;
-                
-                for (int i = 0; i < 3; i++) {
-                    int ry = cat2Y2 + ROW_H + i * ROW_H;
-                    if (my >= ry && my < ry + ROW_H && mx >= sliderX && mx <= sliderX + sliderW) {
-                        draggingSlider = i;
-                        updateSliderFromMouse(mx, sliderX, sliderW);
-                        return true;
-                    }
-                }
-            }
-
-            // Catégorie 3 : Song Config
-            int cat3Y1 = cat2Y2 + (sizeConfigExpanded ? (ROW_H * 4) : 0);
-            int cat3Y2 = cat3Y1 + CAT_H;
-
-            if (my >= cat3Y1 && my < cat3Y2) {
-                songConfigExpanded = !songConfigExpanded;
-                return true;
-            }
-
-            if (songConfigExpanded) {
-                int r1y1 = cat3Y2;
-                int r1y2 = r1y1 + ROW_H;
-
-                // Click Platform row: toggle dropdown
-                if (my >= r1y1 && my < r1y2) {
-                    platformDropdownOpen = !platformDropdownOpen;
-                    return true;
-                }
-
-                int currentY = r1y2;
-
-                if (platformDropdownOpen) {
-                    String[] options = new String[]{"None", "YouTube Music", "Spotify", "Deezer"};
-                    for (int i = 0; i < options.length; i++) {
-                        int optY1 = currentY;
-                        int optY2 = optY1 + ROW_H;
-                        if (my >= optY1 && my < optY2) {
-                            ModConfig.INSTANCE.musicProvider = options[i];
-                            ModConfig.INSTANCE.save();
-                            platformDropdownOpen = false;
-                            return true;
-                        }
-                        currentY = optY2;
-                    }
-                }
-
-                int r3y1 = currentY + ROW_H;
-                int r3y2 = r3y1 + ROW_H;
-
-                // Click Connexion
-                if (my >= r3y1 && my < r3y2) {
-                    String p = ModConfig.INSTANCE.musicProvider;
-                    if ("YTM".equalsIgnoreCase(p) || "YouTube Music".equalsIgnoreCase(p)) {
-                        com.songgka.client.SonggkaClient.requestPairing();
-                    }
-                    return true;
-                }
-            }
-
-            // Catégorie 4 : Custom Blocks
-            int dropHSong = (songConfigExpanded && platformDropdownOpen) ? (ROW_H * 4) : 0;
-            int cat4Y1 = cat3Y2 + (songConfigExpanded ? (ROW_H * 3 + dropHSong) : 0);
-            int cat4Y2 = cat4Y1 + CAT_H;
-
-            if (my >= cat4Y1 && my < cat4Y2) {
-                ghostBlocksExpanded = !ghostBlocksExpanded;
-                return true;
-            }
-
-            if (ghostBlocksExpanded) {
-                int r1y1 = cat4Y2;
-                int r1y2 = r1y1 + ROW_H;
-                if (my >= r1y1 && my < r1y2) {
-                    com.songgka.client.features.GhostBlockManager.isGhostBlocksEnabled = !com.songgka.client.features.GhostBlockManager.isGhostBlocksEnabled;
-                    if (this.minecraft != null && this.minecraft.levelRenderer != null) {
-                        this.minecraft.levelRenderer.allChanged();
-                    }
-                    return true;
-                }
-
-                int r2y1 = r1y2;
-                int r2y2 = r2y1 + ROW_H;
-                if (my >= r2y1 && my < r2y2) {
-                    com.songgka.client.features.GhostBlockManager.isGlassGhostBlocksEnabled = !com.songgka.client.features.GhostBlockManager.isGlassGhostBlocksEnabled;
-                    if (this.minecraft != null && this.minecraft.levelRenderer != null) {
-                        this.minecraft.levelRenderer.allChanged();
-                    }
-                    return true;
-                }
-            }
+            tabY += ROW_H + 4;
         }
 
+        int cx = px + SIDEBAR_W + 15;
+        int cy = py + 35;
+        int cw = WIN_W - SIDEBAR_W - 30;
+        
+        if (activeTab == 0) {
+            if (mx >= cx && mx < cx + cw && my >= cy && my < cy + ROW_H) { ModConfig.INSTANCE.enableAc = !ModConfig.INSTANCE.enableAc; ModConfig.INSTANCE.save(); return true; } cy += ROW_H;
+            if (mx >= cx && mx < cx + cw && my >= cy && my < cy + ROW_H) { ModConfig.INSTANCE.enableGc = !ModConfig.INSTANCE.enableGc; ModConfig.INSTANCE.save(); return true; } cy += ROW_H;
+            if (mx >= cx && mx < cx + cw && my >= cy && my < cy + ROW_H) { ModConfig.INSTANCE.enablePc = !ModConfig.INSTANCE.enablePc; ModConfig.INSTANCE.save(); return true; } cy += ROW_H;
+            
+            cy += 22;
+            for (int i = 0; i < 13; i++) {
+                int col = i % 2;
+                int row = i / 2;
+                int tx = cx + col * (cw / 2);
+                int ty = cy + row * 18;
+                if (mx >= tx && mx < tx + 50 && my >= ty && my < ty + 14) {
+                    switch(i) {
+                        case 0 -> ModConfig.INSTANCE.enableSong = !ModConfig.INSTANCE.enableSong;
+                        case 1 -> ModConfig.INSTANCE.enableMeow = !ModConfig.INSTANCE.enableMeow;
+                        case 2 -> ModConfig.INSTANCE.enableWanted = !ModConfig.INSTANCE.enableWanted;
+                        case 3 -> ModConfig.INSTANCE.enableKiss = !ModConfig.INSTANCE.enableKiss;
+                        case 4 -> ModConfig.INSTANCE.enableFeed = !ModConfig.INSTANCE.enableFeed;
+                        case 5 -> ModConfig.INSTANCE.enablePoke = !ModConfig.INSTANCE.enablePoke;
+                        case 6 -> ModConfig.INSTANCE.enablePat = !ModConfig.INSTANCE.enablePat;
+                        case 7 -> ModConfig.INSTANCE.enableHug = !ModConfig.INSTANCE.enableHug;
+                        case 8 -> ModConfig.INSTANCE.enableSus = !ModConfig.INSTANCE.enableSus;
+                        case 9 -> ModConfig.INSTANCE.enableRizz = !ModConfig.INSTANCE.enableRizz;
+                        case 10 -> ModConfig.INSTANCE.enableJerry = !ModConfig.INSTANCE.enableJerry;
+                        case 11 -> ModConfig.INSTANCE.enableIq = !ModConfig.INSTANCE.enableIq;
+                        case 12 -> ModConfig.INSTANCE.enableSleep = !ModConfig.INSTANCE.enableSleep;
+                    }
+                    ModConfig.INSTANCE.save();
+                    return true;
+                }
+            }
+        } else if (activeTab == 1) {
+            if (mx >= cx && mx < cx + cw && my >= cy && my < cy + ROW_H) { ModConfig.INSTANCE.enableNameColor = !ModConfig.INSTANCE.enableNameColor; ModConfig.INSTANCE.save(); return true; } cy += ROW_H;
+            
+            if (mx >= cx && mx < cx + cw && my >= cy && my < cy + ROW_H) { prefixInputFocused = true; suffixInputFocused = false; hexInputFocused = false; return true; } cy += ROW_H;
+            if (mx >= cx && mx < cx + cw && my >= cy && my < cy + ROW_H) { suffixInputFocused = true; prefixInputFocused = false; hexInputFocused = false; return true; } cy += ROW_H;
+            
+            if (mx >= cx && mx < cx + cw - 70 && my >= cy && my < cy + ROW_H) { 
+                ModConfig.INSTANCE.enableGradient = !ModConfig.INSTANCE.enableGradient; 
+                ModConfig.INSTANCE.save(); 
+                return true; 
+            }
+            if (ModConfig.INSTANCE.enableGradient && mx >= cx + cw - 60 && mx < cx + cw && my >= cy && my < cy + 18) {
+                editingColor2 = !editingColor2;
+                updateHSBFromConfig();
+                return true;
+            }
+            cy += ROW_H;
+            
+            if (mx >= cx && mx < cx + cw && my >= cy && my < cy + ROW_H) { hexInputFocused = true; prefixInputFocused = false; suffixInputFocused = false; return true; } cy += ROW_H;
+            
+            cy += 45;
+            
+            cy += 10;
+            if (mx >= cx && mx < cx + cw && my >= cy && my < cy + 10) { draggingSlider = 3; updateColorFromSliders(); return true; } cy += 16;
+            
+            cy += 10;
+            if (mx >= cx && mx < cx + cw && my >= cy && my < cy + 10) { draggingSlider = 4; updateColorFromSliders(); return true; } cy += 16;
+            
+            cy += 10;
+            if (mx >= cx && mx < cx + cw && my >= cy && my < cy + 10) { draggingSlider = 5; updateColorFromSliders(); return true; } cy += 16;
+            
+        } else if (activeTab == 2) {
+            if (mx >= cx && mx < cx + cw && my >= cy && my < cy + ROW_H) { ModConfig.INSTANCE.playerSizeEnabled = !ModConfig.INSTANCE.playerSizeEnabled; ModConfig.INSTANCE.save(); return true; } cy += ROW_H;
+            
+            if (mx >= cx && mx < cx + cw && my >= cy && my < cy + 26) { draggingSlider = 0; return true; } cy += 26;
+            if (mx >= cx && mx < cx + cw && my >= cy && my < cy + 26) { draggingSlider = 1; return true; } cy += 26;
+            if (mx >= cx && mx < cx + cw && my >= cy && my < cy + 26) { draggingSlider = 2; return true; } cy += 26;
+            
+            if (mx >= cx && mx < cx + 100 && my >= cy && my < cy + 20) {
+                ModConfig.INSTANCE.playerSizeX = 1.0f;
+                ModConfig.INSTANCE.playerSizeY = 1.0f;
+                ModConfig.INSTANCE.playerSizeZ = 1.0f;
+                ModConfig.INSTANCE.save();
+                return true;
+            }
+        } else if (activeTab == 3) {
+            if (mx >= cx && mx < cx + cw && my >= cy && my < cy + ROW_H) { 
+                GhostBlockManager.isGhostBlocksEnabled = !GhostBlockManager.isGhostBlocksEnabled; 
+                if (Minecraft.getInstance().levelRenderer != null) Minecraft.getInstance().levelRenderer.allChanged();
+                return true; 
+            } cy += ROW_H;
+            if (mx >= cx && mx < cx + cw && my >= cy && my < cy + ROW_H) { 
+                GhostBlockManager.isGlassGhostBlocksEnabled = !GhostBlockManager.isGlassGhostBlocksEnabled; 
+                if (Minecraft.getInstance().levelRenderer != null) Minecraft.getInstance().levelRenderer.allChanged();
+                return true; 
+            } cy += ROW_H;
+            if (mx >= cx && mx < cx + cw && my >= cy && my < cy + ROW_H) { ModConfig.INSTANCE.enableAutoUpdate = !ModConfig.INSTANCE.enableAutoUpdate; ModConfig.INSTANCE.save(); return true; } cy += ROW_H;
+            cy += 5;
+            
+            int bx = cx + 90;
+            if (providerDropdownOpen) {
+                if (mx >= bx && mx < bx + 80 && my >= cy + 18 && my < cy + 18 + 72) {
+                    String[] plats = {"None", "YTM", "Spotify", "Deezer"};
+                    ModConfig.INSTANCE.musicProvider = plats[(int)((my - (cy + 18)) / 18)];
+                    ModConfig.INSTANCE.save();
+                    providerDropdownOpen = false;
+                    return true;
+                } else {
+                    providerDropdownOpen = false;
+                }
+            } else if (mx >= bx && mx < bx + 80 && my >= cy && my < cy + 18) {
+                providerDropdownOpen = true;
+                return true;
+            }
+        }
+        
         return super.mouseClicked(event, focused);
     }
 
-    @Override
-    public boolean mouseDragged(MouseButtonEvent event, double deltaX, double deltaY) {
-        int mx = (int) event.x();
-        int my = (int) event.y();
-
-        if (draggingSlider != -1) {
-            int sliderX = miscX + PANEL_W / 3;
-            int sliderW = PANEL_W / 2;
-            updateSliderFromMouse(mx, sliderX, sliderW);
-            return true;
-        }
-
-        if (colorPickerExpanded && mx >= miscX && mx < miscX + PANEL_W) {
-            int basey = START_Y + HEADER_H;
-            int cat1Y2 = basey + CAT_H;
-            int r0y2 = cat1Y2 + ROW_H;   // Enable row
-            int r01y2 = r0y2 + ROW_H;    // Preset row
-            int presetDropH = presetDropdownOpen ? (ROW_H * com.songgka.client.color.NameColorManager.COLORS.length) : 0;
-            int dropY = r01y2 + presetDropH + 4;
-            int boxX = miscX + INDENT_1;
-            int boxY = dropY;
-            int boxW = PANEL_W - INDENT_1 * 2;
-            int boxH = 55;
-
-            if (my >= boxY && my < boxY + boxH) {
-                updateColorFromSV(mx - boxX, my - boxY, boxW, boxH);
-                return true;
-            }
-
-            int hueX = boxX;
-            int hueY = boxY + boxH + 5;
-            int hueW = boxW;
-            int hueH = 9;
-
-            if (my >= hueY && my < hueY + hueH) {
-                updateColorFromHue(mx - hueX, hueW);
-                return true;
-            }
-        }
-        return super.mouseDragged(event, deltaX, deltaY);
-    }
-    
     @Override
     public boolean mouseReleased(MouseButtonEvent event) {
         if (draggingSlider != -1) {
             draggingSlider = -1;
             ModConfig.INSTANCE.save();
-            return true;
         }
         return super.mouseReleased(event);
     }
 
-
-
-    private void updateSliderFromMouse(int mx, int sliderX, int sliderW) {
-        float pct = (float)(mx - sliderX) / sliderW;
-        pct = Math.max(0.0f, Math.min(1.0f, pct));
-        float val = -1.0f + pct * 4.0f; // range [-1, 3]
-        if (draggingSlider == 0) ModConfig.INSTANCE.playerSizeX = val;
-        else if (draggingSlider == 1) ModConfig.INSTANCE.playerSizeY = val;
-        else if (draggingSlider == 2) ModConfig.INSTANCE.playerSizeZ = val;
-    }
-
-    private void updateColorFromSV(int relX, int relY, int boxW, int boxH) {
-        float sat = Math.max(0.0f, Math.min(1.0f, (float) relX / (float) boxW));
-        float val = Math.max(0.0f, Math.min(1.0f, 1.0f - ((float) relY / (float) boxH)));
-        int rgb = java.awt.Color.HSBtoRGB(selectedHue, sat, val) & 0xFFFFFF;
-        String hex = String.format("#%06X", rgb);
-        if (editingColor2 && ModConfig.INSTANCE.enableGradient) {
-            ModConfig.INSTANCE.customHexColor2 = hex;
-        } else {
-            ModConfig.INSTANCE.customHexColor = hex;
-            ModConfig.INSTANCE.nameColorIndex = 2;
-        }
-        ModConfig.INSTANCE.save();
-    }
-
-    private void updateColorFromHue(int relX, int hueW) {
-        selectedHue = Math.max(0.0f, Math.min(1.0f, (float) relX / (float) hueW));
-        // Maintain current sat & val
-        String curHex = editingColor2 && ModConfig.INSTANCE.enableGradient ? ModConfig.INSTANCE.customHexColor2 : ModConfig.INSTANCE.customHexColor;
-        float sat = 1.0f, val = 1.0f;
-        if (curHex != null && curHex.startsWith("#") && curHex.length() == 7) {
-            try {
-                int currentRgb = Integer.parseInt(curHex.substring(1), 16);
-                float[] hsb = java.awt.Color.RGBtoHSB((currentRgb >> 16) & 0xFF, (currentRgb >> 8) & 0xFF, currentRgb & 0xFF, null);
-                sat = hsb[1];
-                val = hsb[2];
-            } catch (Exception ignored) {}
-        }
-        int rgb = java.awt.Color.HSBtoRGB(selectedHue, sat, val) & 0xFFFFFF;
-        String hex = String.format("#%06X", rgb);
-        if (editingColor2 && ModConfig.INSTANCE.enableGradient) {
-            ModConfig.INSTANCE.customHexColor2 = hex;
-        } else {
-            ModConfig.INSTANCE.customHexColor = hex;
-            ModConfig.INSTANCE.nameColorIndex = 2;
-        }
-        ModConfig.INSTANCE.save();
-    }
-
     @Override
     public boolean charTyped(net.minecraft.client.input.CharacterEvent event) {
-        if (hexInputFocused) {
+        char chr = (char) event.codepoint();
+        if (prefixInputFocused && chr >= 32 && chr <= 126) {
+            ModConfig.INSTANCE.customPrefix += chr; ModConfig.INSTANCE.save(); return true;
+        } else if (suffixInputFocused && chr >= 32 && chr <= 126) {
+            ModConfig.INSTANCE.customSuffix += chr; ModConfig.INSTANCE.save(); return true;
+        } else if (hexInputFocused) {
             String cur = editingColor2 && ModConfig.INSTANCE.enableGradient ? ModConfig.INSTANCE.customHexColor2 : ModConfig.INSTANCE.customHexColor;
             if (cur == null || !cur.startsWith("#")) cur = "#";
-
-            char chr = (char) event.codepoint();
             char c = Character.toUpperCase(chr);
-            if (c == '#' && !cur.startsWith("#")) {
-                cur = "#" + cur;
-            } else if ((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F')) {
-                if (cur.length() < 7) {
-                    cur = cur + c;
-                }
+            if (c == '#' && !cur.startsWith("#")) cur = "#" + cur;
+            else if ((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F')) {
+                if (cur.length() < 7) cur = cur + c;
             }
-
-            if (editingColor2 && ModConfig.INSTANCE.enableGradient) {
-                ModConfig.INSTANCE.customHexColor2 = cur;
-            } else {
-                ModConfig.INSTANCE.customHexColor = cur;
-                ModConfig.INSTANCE.nameColorIndex = 2;
-            }
+            if (editingColor2 && ModConfig.INSTANCE.enableGradient) ModConfig.INSTANCE.customHexColor2 = cur;
+            else ModConfig.INSTANCE.customHexColor = cur;
+            updateHSBFromConfig();
             ModConfig.INSTANCE.save();
             return true;
         }
@@ -965,32 +501,38 @@ public class SonggkaConfigScreen extends Screen {
 
     @Override
     public boolean keyPressed(net.minecraft.client.input.KeyEvent event) {
-        if (hexInputFocused) {
-            if (event.key() == 259) { // GLFW_KEY_BACKSPACE
+        int key = event.key();
+        if (key == 259) { // Backspace
+            if (prefixInputFocused && ModConfig.INSTANCE.customPrefix.length() > 0) {
+                ModConfig.INSTANCE.customPrefix = ModConfig.INSTANCE.customPrefix.substring(0, ModConfig.INSTANCE.customPrefix.length() - 1);
+                ModConfig.INSTANCE.save(); return true;
+            } else if (suffixInputFocused && ModConfig.INSTANCE.customSuffix.length() > 0) {
+                ModConfig.INSTANCE.customSuffix = ModConfig.INSTANCE.customSuffix.substring(0, ModConfig.INSTANCE.customSuffix.length() - 1);
+                ModConfig.INSTANCE.save(); return true;
+            } else if (hexInputFocused) {
                 String cur = editingColor2 && ModConfig.INSTANCE.enableGradient ? ModConfig.INSTANCE.customHexColor2 : ModConfig.INSTANCE.customHexColor;
                 if (cur != null && cur.length() > 1) {
                     cur = cur.substring(0, cur.length() - 1);
-                    if (editingColor2 && ModConfig.INSTANCE.enableGradient) {
-                        ModConfig.INSTANCE.customHexColor2 = cur;
-                    } else {
-                        ModConfig.INSTANCE.customHexColor = cur;
-                        ModConfig.INSTANCE.nameColorIndex = 2;
-                    }
+                    if (editingColor2 && ModConfig.INSTANCE.enableGradient) ModConfig.INSTANCE.customHexColor2 = cur;
+                    else ModConfig.INSTANCE.customHexColor = cur;
+                    updateHSBFromConfig();
                     ModConfig.INSTANCE.save();
                 }
                 return true;
             }
         }
+        if (key == 256) { // Escape
+            if (prefixInputFocused || suffixInputFocused || hexInputFocused || providerDropdownOpen) {
+                prefixInputFocused = suffixInputFocused = hexInputFocused = false;
+                providerDropdownOpen = false;
+                return true;
+            }
+            this.minecraft.setScreen(lastScreen);
+            return true;
+        }
         return super.keyPressed(event);
     }
 
     @Override
-    public void onClose() {
-        ModConfig.INSTANCE.save();
-        com.songgka.client.color.NameColorManager.syncLocalPlayerColor();
-        if (this.minecraft != null) this.minecraft.setScreen(this.lastScreen);
-    }
-
-    @Override
-    public boolean isPauseScreen() { return false; }
+    public boolean shouldCloseOnEsc() { return false; }
 }

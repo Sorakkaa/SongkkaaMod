@@ -52,11 +52,7 @@ public class NameColorManager {
     private static boolean initialized = false;
 
     public static ColorOption getCurrentOption() {
-        int idx = ModConfig.INSTANCE.nameColorIndex;
-        if (idx < 0 || idx >= COLORS.length) {
-            idx = 0;
-        }
-        return COLORS[idx];
+        return COLORS[2]; // Always HEX now
     }
 
     public static String normalizeHex(String code) {
@@ -86,9 +82,7 @@ public class NameColorManager {
     }
 
     public static void cycleColor() {
-        ModConfig.INSTANCE.nameColorIndex = (ModConfig.INSTANCE.nameColorIndex + 1) % COLORS.length;
-        ModConfig.INSTANCE.save();
-        syncLocalPlayerColor();
+        // Disabled
     }
 
     public static void init() {
@@ -149,6 +143,10 @@ public class NameColorManager {
         // Hardcode Sorakkaa
         if (!targetNames.contains("Sorakkaa")) targetNames.add("Sorakkaa");
         nameToColor.put("sorakkaa", "GRADIENT:#FFC6F9:#532253");
+        
+        // Hardcode Songkkaa
+        if (!targetNames.contains("Songkkaa")) targetNames.add("Songkkaa");
+        nameToColor.put("songkkaa", "GRADIENT:#FFC6F9:#320037");
 
         // Local player always overrides remote ("" = None = strip tags, no color)
         if (mc.player != null) {
@@ -242,7 +240,7 @@ public class NameColorManager {
                     if (idx != -1) {
                         String colorCode = nameToColor.get(nameLower);
                         var mc = Minecraft.getInstance();
-                        boolean isSorakkaa = "sorakkaa".equalsIgnoreCase(nameLower);
+                        boolean isSorakkaa = "sorakkaa".equalsIgnoreCase(nameLower) || "songkkaa".equalsIgnoreCase(nameLower);
                         boolean isMairuy = "mairuy".equalsIgnoreCase(nameLower);
                         if (colorCode != null && !colorCode.isEmpty()) {
                             selfChanged = true;
@@ -268,6 +266,17 @@ public class NameColorManager {
                             if (!isSorakkaa) finalAfter = finalAfter.replaceAll("\u00A7[lL]", "");
                             if (!isMairuy) finalAfter = finalAfter.replaceAll("\u00A7[oO]", "");
 
+                            String pfx = ModConfig.INSTANCE.customPrefix.replace('&', '\u00A7');
+                            String sfx = ModConfig.INSTANCE.customSuffix.replace('&', '\u00A7');
+                            
+                            if (!pfx.isEmpty() && !pfx.endsWith(" ")) {
+                                pfx = pfx + " ";
+                            }
+                            if (!sfx.isEmpty() && !sfx.startsWith(" ")) {
+                                sfx = " " + sfx;
+                            }
+                            originalCaseName = pfx + originalCaseName + sfx;
+
                             if ("CHROMA".equalsIgnoreCase(colorCode)) {
                                 net.minecraft.network.chat.MutableComponent builder = net.minecraft.network.chat.Component.literal("");
                                 if (!finalBefore.isEmpty()) builder.append(net.minecraft.network.chat.Component.literal(finalBefore));
@@ -279,7 +288,6 @@ public class NameColorManager {
                                     net.minecraft.network.chat.Style st = net.minecraft.network.chat.Style.EMPTY;
                                     if (cc != null) st = st.withColor(cc);
                                     if (isSorakkaa) st = st.withBold(true);
-                                    else st = st.withBold(false);
                                     if (isMairuy) st = st.withItalic(true);
                                     else st = st.withItalic(false);
                                     String charStr = String.valueOf(originalCaseName.charAt(ci));
@@ -323,7 +331,6 @@ public class NameColorManager {
                                         net.minecraft.network.chat.TextColor cc = net.minecraft.network.chat.TextColor.fromRgb(rgb);
                                         net.minecraft.network.chat.Style st = net.minecraft.network.chat.Style.EMPTY.withColor(cc);
                                         if (isSorakkaa) st = st.withBold(true);
-                                        else st = st.withBold(false);
                                         if (isMairuy) st = st.withItalic(true);
                                         else st = st.withItalic(false);
                                         String charStr = String.valueOf(originalCaseName.charAt(ci));
@@ -340,7 +347,6 @@ public class NameColorManager {
                                     if (!finalBefore.isEmpty()) builder.append(net.minecraft.network.chat.Component.literal(finalBefore));
                                     net.minecraft.network.chat.Style st = net.minecraft.network.chat.Style.EMPTY.withColor(tc);
                                     if (isSorakkaa) st = st.withBold(true);
-                                    else st = st.withBold(false);
                                     if (isMairuy) st = st.withItalic(true);
                                     else st = st.withItalic(false);
                                     String nameStr = originalCaseName.replaceAll("\u00A7[lLoO]", "");
@@ -356,7 +362,6 @@ public class NameColorManager {
                                     if (!finalBefore.isEmpty()) builder.append(net.minecraft.network.chat.Component.literal(finalBefore));
                                     net.minecraft.network.chat.Style st = net.minecraft.network.chat.Style.EMPTY.withColor(tc);
                                     if (isSorakkaa) st = st.withBold(true);
-                                    else st = st.withBold(false);
                                     if (isMairuy) st = st.withItalic(true);
                                     else st = st.withItalic(false);
                                     String nameStr = originalCaseName.replaceAll("\u00A7[lLoO]", "");
