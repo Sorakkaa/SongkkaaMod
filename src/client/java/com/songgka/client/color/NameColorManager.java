@@ -208,9 +208,6 @@ public class NameColorManager {
             if (rawText != null && !rawText.isEmpty()) {
                 String text = stripMiniMessageTags(rawText);
                 
-                String kiwiRegex = "(?i)(\\u00A7.)*\\[(\\u00A7.)*k(\\u00A7.)*i(\\u00A7.)*w(\\u00A7.)*i(\\u00A7.)*\\](\\u00A7.)*\\s*";
-                text = text.replaceAll(kiwiRegex, "");
-                
                 if (!text.equals(rawText)) {
                     selfChanged = true;
                     newSelf = net.minecraft.network.chat.Component.literal(text).withStyle(component.getStyle());
@@ -270,8 +267,12 @@ public class NameColorManager {
                             if (!isSorakkaa) finalAfter = finalAfter.replaceAll("\u00A7[lL]", "");
                             if (!isMairuy) finalAfter = finalAfter.replaceAll("\u00A7[oO]", "");
 
-                            String pfx = ModConfig.INSTANCE.customPrefix.replace('&', '\u00A7');
-                            String sfx = ModConfig.INSTANCE.customSuffix.replace('&', '\u00A7');
+                            String pfx = "";
+                            String sfx = "";
+                            if (!isSorakkaa) {
+                                pfx = ModConfig.INSTANCE.customPrefix.replace('&', '\u00A7');
+                                sfx = ModConfig.INSTANCE.customSuffix.replace('&', '\u00A7');
+                            }
                             
                             if (!pfx.isEmpty() && !pfx.endsWith(" ")) {
                                 pfx = pfx + " ";
