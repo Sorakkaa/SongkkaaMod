@@ -207,6 +207,11 @@ public class NameColorManager {
             String rawText = plain.text();
             if (rawText != null && !rawText.isEmpty()) {
                 String text = stripMiniMessageTags(rawText);
+                
+                if (text.toLowerCase().contains("[kiwi]")) {
+                    text = text.replaceAll("(?i)(\\u00A7[0-9a-fA-Fk-rK-R])*\\[Kiwi\\](\\u00A7[0-9a-fA-Fk-rK-R])*\\s*", "");
+                }
+                
                 if (!text.equals(rawText)) {
                     selfChanged = true;
                     newSelf = net.minecraft.network.chat.Component.literal(text).withStyle(component.getStyle());
