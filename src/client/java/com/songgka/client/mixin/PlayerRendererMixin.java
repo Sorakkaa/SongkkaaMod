@@ -19,6 +19,26 @@ public class PlayerRendererMixin {
     @Inject(method = "extractRenderState(Lnet/minecraft/world/entity/Avatar;Lnet/minecraft/client/renderer/entity/state/AvatarRenderState;F)V", at = @At("RETURN"))
     private void onExtractRenderState(Avatar entity, AvatarRenderState renderState, float f, CallbackInfo ci) {
         if (!(renderState instanceof ISizeableState sizeable)) return;
+
+        if (com.songgka.client.features.SorakaModeManager.isActive()) {
+            var oldSkin = renderState.skin;
+            renderState.skin = new net.minecraft.world.entity.player.PlayerSkin(
+                new net.minecraft.core.ClientAsset.ResourceTexture(
+                    com.songgka.client.features.SorakaModeManager.SKIN_ID,
+                    com.songgka.client.features.SorakaModeManager.SKIN_LOCATION
+                ),
+                oldSkin != null ? oldSkin.cape() : null,
+                oldSkin != null ? oldSkin.elytra() : null,
+                net.minecraft.world.entity.player.PlayerModelType.SLIM,
+                true
+            );
+            renderState.showHat = true;
+            renderState.showJacket = true;
+            renderState.showLeftPants = true;
+            renderState.showRightPants = true;
+            renderState.showLeftSleeve = true;
+            renderState.showRightSleeve = true;
+        }
         
         var mc = Minecraft.getInstance();
         boolean isLocalPlayer = mc.player != null && entity.getUUID().equals(mc.player.getUUID());

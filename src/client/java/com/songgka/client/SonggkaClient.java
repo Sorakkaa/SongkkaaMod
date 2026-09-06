@@ -12,6 +12,13 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.Minecraft;
 import com.songgka.client.features.SkyblockDetector;
+import com.songgka.client.features.GhostBlockManager;
+import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
+import net.minecraft.client.KeyMapping;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
+import com.mojang.brigadier.arguments.StringArgumentType;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -30,7 +37,7 @@ import java.util.concurrent.CompletableFuture;
 
 public class SonggkaClient implements ClientModInitializer {
 
-	public static final String MOD_VERSION = "1.3.0";
+	public static final String MOD_VERSION = "1.5.0";
 	private static final String APP_ID = "songkkaa";
 
 	// Anti-spam state
@@ -38,14 +45,23 @@ public class SonggkaClient implements ClientModInitializer {
 	private static volatile boolean isPairingActive = false;
 	public static String currentSongText = null;
 
+	// Keybinds for GhostBlocks removed to bake configuration into the mod
+
 	@Override
 	public void onInitializeClient() {
+		// Keybinds registration removed
+
 		ModConfig.load();
 		com.songgka.client.color.NameColorManager.init();
 		com.songgka.client.update.UpdateManager.checkForUpdates();
 		com.songgka.client.features.GhostBlockManager.init();
 
-		ClientTickEvents.END_CLIENT_TICK.register(SkyblockDetector::onClientTick);
+		ClientTickEvents.END_CLIENT_TICK.register(mc -> {
+			SkyblockDetector.onClientTick(mc);
+			com.songgka.client.features.DungeonLagTracker.onClientTick();
+			
+			// GhostBlock keybind processing removed
+		});
 
 		ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
 			com.songgka.client.color.NameColorManager.syncLocalPlayerColor();
@@ -82,6 +98,13 @@ public class SonggkaClient implements ClientModInitializer {
 					mc.execute(() -> mc.setScreen(new SonggkaConfigScreen(mc.screen)));
 					return 1;
 				})
+				.then(ClientCommands.literal("gui")
+					.executes(context -> {
+						Minecraft mc = Minecraft.getInstance();
+						mc.execute(() -> mc.setScreen(new com.songgka.client.gui.EditLagHudScreen(mc.screen)));
+						return 1;
+					})
+				)
 			);
 		});
 
@@ -91,8 +114,8 @@ public class SonggkaClient implements ClientModInitializer {
 		});
 
 		ClientReceiveMessageEvents.GAME.register((message, overlay) -> {
-			if (!ModConfig.INSTANCE.enableSong) return;
 			String text = message.getString();
+			if (!ModConfig.INSTANCE.enableSong) return;
 			if (text == null || text.contains("[Songkkaa]")) return;
 
 			// Normalize non-breaking spaces and lower-case text
@@ -135,8 +158,11 @@ public class SonggkaClient implements ClientModInitializer {
 		else if (lower.contains("!sus") && ModConfig.INSTANCE.enableSus) processFunCommand(text, "!sus");
 		else if (lower.contains("!rizz") && ModConfig.INSTANCE.enableRizz) processFunCommand(text, "!rizz");
 		else if (lower.contains("!jerry") && ModConfig.INSTANCE.enableJerry) processFunCommand(text, "!jerry");
+		else if (lower.contains("!soraka") && ModConfig.INSTANCE.enableSoraka) processFunCommand(text, "!soraka");
 		else if (lower.contains("!iq") && ModConfig.INSTANCE.enableIq) processFunCommand(text, "!iq");
 		else if (lower.contains("!sleep") && ModConfig.INSTANCE.enableSleep) processFunCommand(text, "!sleep");
+		else if (lower.contains("!yuri") && ModConfig.INSTANCE.enableYuri) processFunCommand(text, "!yuri");
+		else if (lower.contains("!frieren") && ModConfig.INSTANCE.enableFrieren) processFunCommand(text, "!frieren");
 	}
 
 	private static long lastCommandTime = 0;
@@ -180,7 +206,7 @@ public class SonggkaClient implements ClientModInitializer {
 		Minecraft mc = Minecraft.getInstance();
 		String myName = mc.player != null ? mc.player.getScoreboardName() : "I";
 		if (name == null) {
-			name = "Someone";
+			name = myName;
 		}
 
 		String msg = "";
@@ -204,11 +230,53 @@ public class SonggkaClient implements ClientModInitializer {
 		} else if (command.equals("!rizz")) {
 			msg = name + " has a " + new java.util.Random().nextInt(101) + "% rizz level! Absolute W.";
 		} else if (command.equals("!jerry")) {
+			com.songgka.client.features.SorakaModeManager.deactivate();
+			com.songgka.client.features.JerryModeManager.activate();
 			msg = "[Jerry] We are one. We are Jerry.";
+		} else if (command.equals("!soraka")) {
+			com.songgka.client.features.JerryModeManager.deactivate();
+			com.songgka.client.features.SorakaModeManager.activate();
+			msg = "[Soraka] Yes, that was a banana. No one expects the banana.";
+		} else if (command.equals("!frieren")) {
+			com.songgka.client.features.FrierenScreamerManager.trigger();
+			msg = "[Frieren] KYAAAAA! Kur\u0101i yo! Kowai yo!";
 		} else if (command.equals("!iq")) {
 			msg = "[Scanner] " + name + "'s IQ: 4. Can hold a sword, struggles to find the W key.";
 		} else if (command.equals("!sleep")) {
 			msg = "Hey, are you awake? My bed exploded.";
+		} else if (command.equals("!yuri")) {
+			String p1 = myName;
+			String p2 = name;
+			boolean hasTwo = false;
+			if (cmdIdx != -1 && text.length() > cmdIdx + command.length()) {
+				String afterCmd = text.substring(cmdIdx + command.length()).replaceAll("(?i)\\u00A7[0-9a-fk-or]", "").trim();
+				if (!afterCmd.isEmpty()) {
+					String[] words = afterCmd.split("\\s+");
+					if (words.length >= 2) {
+						hasTwo = true;
+						p1 = name;
+						p2 = words[1];
+						try {
+							if (mc.player != null && mc.player.connection != null) {
+								for (net.minecraft.client.multiplayer.PlayerInfo info : mc.player.connection.getOnlinePlayers()) {
+									if (info != null && info.getProfile() != null && info.getProfile().name() != null) {
+										String pName = info.getProfile().name();
+										if (pName.toLowerCase().startsWith(p2.toLowerCase())) {
+											p2 = pName;
+											break;
+										}
+									}
+								}
+							}
+						} catch (Throwable ignored) {}
+					}
+				}
+			}
+			if (hasTwo) {
+				msg = p1 + " and " + p2 + " are " + new java.util.Random().nextInt(101) + "% yuri together!";
+			} else {
+				msg = name + " is " + new java.util.Random().nextInt(101) + "% yuri.";
+			}
 		}
 
 		String prefix = getChatPrefix(lower);
@@ -543,7 +611,7 @@ public class SonggkaClient implements ClientModInitializer {
 		sendServerChatMessage(chatPrefix, body);
 	}
 
-	private static void sendLocalChatMessage(String message) {
+	public static void sendLocalChatMessage(String message) {
 		Minecraft mc = Minecraft.getInstance();
 		mc.execute(() -> {
 			var player = mc.player;
@@ -553,7 +621,7 @@ public class SonggkaClient implements ClientModInitializer {
 		});
 	}
 
-	private static void sendServerChatMessage(String chatPrefix, String message) {
+	public static void sendServerChatMessage(String chatPrefix, String message) {
 		Minecraft mc = Minecraft.getInstance();
 		mc.execute(() -> {
 			var player = mc.player;
@@ -578,5 +646,37 @@ public class SonggkaClient implements ClientModInitializer {
 			}
 		}
 		return sb.toString();
+	}
+
+	private net.minecraft.world.phys.HitResult performGhostBlockRaycast(Minecraft mc) {
+		if (mc.player == null || mc.level == null) return mc.hitResult;
+		
+		double reach = mc.player.blockInteractionRange();
+		net.minecraft.world.phys.Vec3 start = mc.player.getEyePosition(1.0F);
+		net.minecraft.world.phys.Vec3 look = mc.player.getViewVector(1.0F);
+		net.minecraft.world.phys.Vec3 end = start.add(look.x * reach, look.y * reach, look.z * reach);
+		
+		net.minecraft.world.level.ClipContext contextOutline = new net.minecraft.world.level.ClipContext(
+			start, end, 
+			net.minecraft.world.level.ClipContext.Block.OUTLINE, 
+			net.minecraft.world.level.ClipContext.Fluid.NONE, 
+			mc.player
+		);
+		net.minecraft.world.phys.BlockHitResult hitOutline = mc.level.clip(contextOutline);
+		
+		net.minecraft.world.level.ClipContext contextCollision = new net.minecraft.world.level.ClipContext(
+			start, end, 
+			net.minecraft.world.level.ClipContext.Block.COLLIDER, 
+			net.minecraft.world.level.ClipContext.Fluid.NONE, 
+			mc.player
+		);
+		net.minecraft.world.phys.BlockHitResult hitCollision = mc.level.clip(contextCollision);
+		
+		if (hitOutline.getType() == net.minecraft.world.phys.HitResult.Type.MISS) return hitCollision;
+		if (hitCollision.getType() == net.minecraft.world.phys.HitResult.Type.MISS) return hitOutline;
+		
+		double distOutline = hitOutline.getLocation().distanceToSqr(start);
+		double distCollision = hitCollision.getLocation().distanceToSqr(start);
+		return distCollision < distOutline ? hitCollision : hitOutline;
 	}
 }

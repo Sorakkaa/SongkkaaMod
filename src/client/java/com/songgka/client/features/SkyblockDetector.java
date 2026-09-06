@@ -14,8 +14,8 @@ public class SkyblockDetector {
 
     public static void onClientTick(Minecraft mc) {
         tickCounter++;
-        // On vérifie seulement toutes les 20 ticks (1 seconde) pour ne pas lag
-        if (tickCounter >= 20) {
+        // On vérifie seulement toutes les 2 ticks (0.1 seconde) pour ne pas lag
+        if (tickCounter >= 2) {
             tickCounter = 0;
             updateStatus(mc);
         }
@@ -36,6 +36,7 @@ public class SkyblockDetector {
                 String title = objective.getDisplayName().getString();
                 String cleanTitle = title.replaceAll("(?i)§[0-9a-fk-or]", "");
                 if (cleanTitle.contains("SKYBLOCK") || cleanTitle.contains("SKIBLOCK")) {
+                    boolean foundDungeonIndicator = false;
                     for (PlayerScoreEntry entry : scoreboard.listPlayerScores(objective)) {
                         String owner = entry.owner();
                         String displayText = entry.display() != null ? entry.display().getString() : "";
@@ -47,10 +48,23 @@ public class SkyblockDetector {
                         String fullLine = prefix + owner + suffix + displayText;
                         String cleanLine = fullLine.replaceAll("(?i)§[0-9a-fk-or]", "");
 
-                        if (cleanLine.contains("(F7)") || cleanLine.contains("(M7)")) {
-                            newState = true;
-                            break;
+                        com.songgka.client.features.DungeonLagTracker.checkScoreboardLine(cleanLine);
+
+                        String lower = cleanLine.toLowerCase();
+                        if (lower.contains("catacombs") || 
+                            lower.contains("(f7)") || lower.contains("(m7)") || 
+                            lower.contains(" f7") || lower.contains(" m7") ||
+                            lower.contains("alive dragons") ||
+                            lower.contains("cleared:")) {
+                            foundDungeonIndicator = true;
                         }
+                    }
+
+                    if (!foundDungeonIndicator) {
+                        com.songgka.client.features.DungeonLagTracker.forceEndRun();
+                        newState = false;
+                    } else {
+                        newState = true;
                     }
                 }
             }

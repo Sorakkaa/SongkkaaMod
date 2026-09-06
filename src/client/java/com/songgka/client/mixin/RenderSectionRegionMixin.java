@@ -16,16 +16,22 @@ public class RenderSectionRegionMixin {
         if (GhostBlockManager.isGhostBlocksEnabled && com.songgka.client.features.SkyblockDetector.isInF7OrM7) {
             BlockState originalState = cir.getReturnValue();
             if (originalState != null && !originalState.isAir()) {
+                if (originalState.getBlock() == net.minecraft.world.level.block.Blocks.NETHER_BRICK_FENCE) {
+                    cir.setReturnValue(GhostBlockManager.getGhostBlockVisualState(originalState, "minecraft:warped_fence"));
+                    return;
+                }
+                
                 String ghost = GhostBlockManager.ghostBlocks.get(pos.asLong());
                 if (ghost != null) {
                     boolean isGlass = ghost.contains("glass");
                     if (isGlass && !GhostBlockManager.isGlassGhostBlocksEnabled) {
                         return;
                     }
-                    net.minecraft.world.level.block.Block block = net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(net.minecraft.resources.Identifier.tryParse(ghost)).map(ref -> ref.value()).orElse(null);
-                    if (block != null) {
-                        cir.setReturnValue(block.defaultBlockState());
+                    if (ghost.equals("minecraft:air")) {
+                        cir.setReturnValue(net.minecraft.world.level.block.Blocks.AIR.defaultBlockState());
+                        return;
                     }
+                    cir.setReturnValue(GhostBlockManager.getGhostBlockVisualState(originalState, ghost));
                 }
             }
         }
