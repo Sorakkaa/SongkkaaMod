@@ -5,14 +5,15 @@
 	"mixins": [
 		"EntityRendererMixin",
 		"EntityRenderDispatcherMixin",
-		"ClientPlayNetworkHandlerMixin",
 		"PlayerRendererMixin",
 		"AvatarRenderStateMixin",
 		"TitleScreenMixin",
 		"RenderSectionRegionMixin",
 		"SodiumLevelSliceMixin",
 		"GuiMixin",
-		"ChatComponentMixin"
+		"ChatComponentMixin",
+		"EntityMixin",
+		"ClientPacketListenerMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

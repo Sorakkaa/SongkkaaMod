@@ -53,7 +53,36 @@ public class GuiMixin {
                 }
             }
         }
+        if (com.songgka.client.config.ModConfig.INSTANCE.enableBossSpawnHud && com.songgka.client.features.SlayerCarryManager.showSpawnHudTicks > 0) {
+            String owner = com.songgka.client.features.SlayerCarryManager.lastSpawnedBossOwner;
+            if (owner != null && !owner.isEmpty()) {
+                int x = com.songgka.client.config.ModConfig.INSTANCE.bossHudX;
+                int y = com.songgka.client.config.ModConfig.INSTANCE.bossHudY;
+                float scale = com.songgka.client.config.ModConfig.INSTANCE.bossHudScale;
+                if (scale <= 0.1f) scale = 1.0f;
+                
+                String line1 = owner;
+                String line2 = "§lBoss spawn";
+                
+                int w1 = mc.font.width(line1);
+                int w2 = mc.font.width(line2);
+                
+                guiGraphics.pose().pushMatrix();
+                guiGraphics.pose().translate(x, y);
+                guiGraphics.pose().scale(scale, scale);
+                
+                int x1 = -w1 / 2;
+                int x2 = -w2 / 2;
+                
+                // Draw strings with shadow
+                guiGraphics.text(mc.font, net.minecraft.network.chat.Component.literal(line1), x1, 0, 0xFFFFAA00);
+                guiGraphics.text(mc.font, net.minecraft.network.chat.Component.literal(line2), x2, mc.font.lineHeight + 2, 0xFFFF5555);
+                
+                guiGraphics.pose().popMatrix();
+            }
         }
+        }
+
 
         if (com.songgka.client.features.FrierenScreamerManager.isActive()) {
             int sw = mc.getWindow().getGuiScaledWidth();

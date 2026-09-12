@@ -148,7 +148,7 @@ public class DungeonLagTracker {
                     timeStr = String.format(java.util.Locale.US, "%.2fs", seconds);
                 }
                 
-                sendPartyMessage("You lost " + timeStr + " due to lag");
+                sendPartyMessage("Time lost to lag: " + timeStr);
 
                 inRun = false;
                 hasRunEndedThisInstance = true;

@@ -36,6 +36,7 @@ public class SonggkaConfigScreen extends Screen {
     private static boolean customNameOpen = false;
     private static boolean playerSizeOpen = false;
     private static boolean dungeonCustomBlocksOpen = false;
+    private static boolean slayerCarryOpen = false;
     private boolean hexInputFocused = false;
     private boolean prefixInputFocused = false;
     private boolean suffixInputFocused = false;
@@ -55,7 +56,7 @@ public class SonggkaConfigScreen extends Screen {
     }
 
     private void updateHSBFromConfig() {
-        String hex = editingColor2 && ModConfig.INSTANCE.enableGradient ? ModConfig.INSTANCE.customHexColor2 : ModConfig.INSTANCE.customHexColor;
+        String hex = (activeTab == 3) ? ModConfig.INSTANCE.slayerGlowColor : (editingColor2 && ModConfig.INSTANCE.enableGradient ? ModConfig.INSTANCE.customHexColor2 : ModConfig.INSTANCE.customHexColor);
         if (hex != null && hex.length() == 7 && hex.startsWith("#")) {
             try {
                 int rgb = Integer.parseInt(hex.substring(1), 16);
@@ -98,7 +99,7 @@ public class SonggkaConfigScreen extends Screen {
         
         g.text(font, "§lSONGKKAA UI", px + 12, py + 15, COL_TEXT);
         
-        String[] tabs = {"Commands", "Custom Player", "Dungeon", "Misc Settings"};
+        String[] tabs = {"Commands", "Custom Player", "Dungeon", "Slayer", "Misc Settings"};
         int tabY = py + 40;
         for (int i = 0; i < tabs.length; i++) {
             boolean active = (activeTab == i);
@@ -171,7 +172,7 @@ public class SonggkaConfigScreen extends Screen {
             cy += hH + 4;
 
             if (customNameOpen) {
-                cy = renderToggle(g, font, cx + 6, cy, cw - 12, "Enable Name Color", ModConfig.INSTANCE.enableNameColor, mx, my);
+                cy = renderToggle(g, font, cx + 6, cy, cw - 12, "Name Color", ModConfig.INSTANCE.enableNameColor, mx, my);
                 
                 g.text(font, "Prefix: " + ModConfig.INSTANCE.customPrefix + (prefixInputFocused && (System.currentTimeMillis()/400%2==0)?"_":""), cx + 6, cy + 4, prefixInputFocused ? COL_TEXT : COL_TEXT_DIM);
                 cy += 18;
@@ -179,7 +180,7 @@ public class SonggkaConfigScreen extends Screen {
                 g.text(font, "Suffix: " + ModConfig.INSTANCE.customSuffix + (suffixInputFocused && (System.currentTimeMillis()/400%2==0)?"_":""), cx + 6, cy + 4, suffixInputFocused ? COL_TEXT : COL_TEXT_DIM);
                 cy += 18;
 
-                cy = renderToggle(g, font, cx + 6, cy, cw - 12, "Enable Gradient", ModConfig.INSTANCE.enableGradient, mx, my);
+                cy = renderToggle(g, font, cx + 6, cy, cw - 12, "Gradient", ModConfig.INSTANCE.enableGradient, mx, my);
                 
                 // Redesigned modern color buttons
                 if (ModConfig.INSTANCE.enableGradient) {
@@ -207,12 +208,9 @@ public class SonggkaConfigScreen extends Screen {
                     cy += bH + 6;
                 }
                 
-                String curHex = editingColor2 && ModConfig.INSTANCE.enableGradient ? ModConfig.INSTANCE.customHexColor2 : ModConfig.INSTANCE.customHexColor;
-                g.text(font, "Hex: " + curHex + (hexInputFocused && (System.currentTimeMillis()/400%2==0)?"_":""), cx + 6, cy + 4, hexInputFocused ? COL_TEXT : COL_TEXT_DIM);
-                cy += 18;
-
                 int boxW = 50;
                 int boxH = 22;
+                String curHex = editingColor2 && ModConfig.INSTANCE.enableGradient ? ModConfig.INSTANCE.customHexColor2 : ModConfig.INSTANCE.customHexColor;
                 int previewColor = parseHex(curHex, 0xFFFFFFFF);
                 
                 RenderUtils.fillRoundedRect(g, cx + 6, cy, boxW, boxH, 4, previewColor);
@@ -220,6 +218,9 @@ public class SonggkaConfigScreen extends Screen {
                 String label = editingColor2 && ModConfig.INSTANCE.enableGradient ? "Color 2 Preview" : "Color 1 Preview";
                 g.text(font, label, cx + 6 + boxW + 10, cy + 7, COL_TEXT);
                 cy += boxH + 6;
+                
+                g.text(font, "Hex: " + curHex + (hexInputFocused && (System.currentTimeMillis()/400%2==0)?"_":""), cx + 6, cy + 4, hexInputFocused ? COL_TEXT : COL_TEXT_DIM);
+                cy += 18;
                 
                 int hueW = cw - 12;
                 int hueH = 8;
@@ -264,7 +265,7 @@ public class SonggkaConfigScreen extends Screen {
             cy += hH + 4;
 
             if (playerSizeOpen) {
-                cy = renderToggle(g, font, cx + 6, cy, cw - 12, "Enable Size Editing", ModConfig.INSTANCE.playerSizeEnabled, mx, my);
+                cy = renderToggle(g, font, cx + 6, cy, cw - 12, "Size Editing", ModConfig.INSTANCE.playerSizeEnabled, mx, my);
                 cy = renderSlider(g, font, cx + 6, cy, cw - 12, "Size X", ModConfig.INSTANCE.playerSizeX, mx, my, 0);
                 cy = renderSlider(g, font, cx + 6, cy, cw - 12, "Size Y", ModConfig.INSTANCE.playerSizeY, mx, my, 1);
                 cy = renderSlider(g, font, cx + 6, cy, cw - 12, "Size Z", ModConfig.INSTANCE.playerSizeZ, mx, my, 2);
@@ -293,19 +294,78 @@ public class SonggkaConfigScreen extends Screen {
             }
 
             // --- Other Dungeon Settings ---
+            int oldCy = cy;
             cy = renderToggle(g, font, cx, cy, cw, "Time Lost to Lag", ModConfig.INSTANCE.enableLagTimeLost, mx, my);
-            
-            if (ModConfig.INSTANCE.enableLagTimeLost) {
-                int bx = cx + 6;
-                boolean bHover = (mx >= bx && mx < bx + cw - 12 && my >= cy && my < cy + 20);
-                RenderUtils.fillRoundedRect(g, bx, cy, cw - 12, 20, 4, bHover ? COL_HOVER : 0x55FFFFFF);
-                String btnText = "Edit Lag HUD Position";
-                int txtW = font.width(btnText);
-                g.text(font, btnText, bx + (cw - 12 - txtW) / 2, cy + 6, COL_TEXT);
-                cy += 24;
-            }
+
+
         } else if (activeTab == 3) {
-            cy = renderToggle(g, font, cx, cy, cw, "Auto Update (juste visuel pour l'instant)", ModConfig.INSTANCE.enableAutoUpdate, mx, my);
+            int hH = 20;
+            int hY = cy;
+            boolean hHover = (mx >= cx && mx < cx + cw && my >= hY && my < hY + hH);
+            RenderUtils.fillRoundedRect(g, cx, hY, cw, hH, 4, slayerCarryOpen ? 0x449D00FF : (hHover ? COL_HOVER : 0x22FFFFFF));
+            RenderUtils.drawGradientOutline(g, cx, hY, cw, hH, 4, slayerCarryOpen ? 0xAA9D00FF : 0x44FFFFFF, 0x11FFFFFF);
+            g.text(font, (slayerCarryOpen ? "▼ " : "▶ ") + "Slayer Carry Tracker", cx + 8, hY + 6, COL_TEXT);
+            cy += hH + 4;
+
+            if (slayerCarryOpen) {
+                cy = renderToggle(g, font, cx + 6, cy, cw - 12, "Slayer Carry Tracker", ModConfig.INSTANCE.enableSlayerCarry, mx, my);
+                cy = renderToggle(g, font, cx + 6, cy, cw - 12, "Boss Spawn Notification", ModConfig.INSTANCE.enableBossSpawnHud, mx, my);
+                cy = renderToggle(g, font, cx + 6, cy, cw - 12, "Auto-Send Boss Coords (/pc)", ModConfig.INSTANCE.autoSendBossCoords, mx, my);
+                
+                RenderUtils.fillRoundedRect(g, cx + 6, cy, cw - 12, 40, 4, 0x11FFFFFF);
+                g.text(font, "§7Commands:", cx + 12, cy + 4, COL_TEXT_DIM);
+                g.text(font, "/songkkaa carry <player> <amount>", cx + 20, cy + 16, 0xFFBBBBBB);
+                g.text(font, "/songkkaa stopcarry <player>", cx + 20, cy + 26, 0xFFBBBBBB);
+                cy += 46;
+                
+                int boxW = 50;
+                int boxH = 22;
+                int previewColor = parseHex(ModConfig.INSTANCE.slayerGlowColor, 0xFFFF55AA);
+                
+                RenderUtils.fillRoundedRect(g, cx + 12, cy, boxW, boxH, 4, previewColor);
+                RenderUtils.drawGradientOutline(g, cx + 12, cy, boxW, boxH, 4, 0x66FFFFFF, 0x22FFFFFF);
+                g.text(font, "Color Preview", cx + 12 + boxW + 10, cy + 7, COL_TEXT);
+                cy += boxH + 6;
+                
+                g.text(font, "Glow Hex: " + ModConfig.INSTANCE.slayerGlowColor + (hexInputFocused && (System.currentTimeMillis()/400%2==0)?"_":""), cx + 12, cy + 4, hexInputFocused ? COL_TEXT : COL_TEXT_DIM);
+                cy += 18;
+
+                int hueW = cw - 24;
+                int hueH = 8;
+                
+                g.text(font, "Hue", cx + 12, cy, COL_TEXT_DIM); cy += 10;
+                for (int i = 0; i < hueW; i++) {
+                    int c = java.awt.Color.HSBtoRGB((float)i / hueW, 1.0f, 1.0f) | 0xFF000000;
+                    g.fill(cx + 12 + i, cy, cx + 12 + i + 1, cy + hueH, c);
+                }
+                int pickerX = cx + 12 + (int)(selectedHue * hueW);
+                pickerX = Math.max(cx + 12, Math.min(cx + 12 + hueW - 3, pickerX));
+                g.fill(pickerX - 1, cy - 2, pickerX + 2, cy + hueH + 2, 0xFFFFFFFF);
+                cy += hueH + 4;
+                
+                g.text(font, "Saturation", cx + 12, cy, COL_TEXT_DIM); cy += 10;
+                for (int i = 0; i < hueW; i++) {
+                    int c = java.awt.Color.HSBtoRGB(selectedHue, (float)i / hueW, selectedVal) | 0xFF000000;
+                    g.fill(cx + 12 + i, cy, cx + 12 + i + 1, cy + hueH, c);
+                }
+                pickerX = cx + 12 + (int)(selectedSat * hueW);
+                pickerX = Math.max(cx + 12, Math.min(cx + 12 + hueW - 3, pickerX));
+                g.fill(pickerX - 1, cy - 2, pickerX + 2, cy + hueH + 2, 0xFFFFFFFF);
+                cy += hueH + 4;
+                
+                g.text(font, "Brightness", cx + 12, cy, COL_TEXT_DIM); cy += 10;
+                for (int i = 0; i < hueW; i++) {
+                    int c = java.awt.Color.HSBtoRGB(selectedHue, selectedSat, (float)i / hueW) | 0xFF000000;
+                    g.fill(cx + 12 + i, cy, cx + 12 + i + 1, cy + hueH, c);
+                }
+                pickerX = cx + 12 + (int)(selectedVal * hueW);
+                pickerX = Math.max(cx + 12, Math.min(cx + 12 + hueW - 3, pickerX));
+                g.fill(pickerX - 1, cy - 2, pickerX + 2, cy + hueH + 2, 0xFFFFFFFF);
+                cy += hueH + 6;
+            }
+            
+        } else if (activeTab == 4) {
+            cy = renderToggle(g, font, cx, cy, cw, "Check for Updates", ModConfig.INSTANCE.enableUpdateCheck, mx, my);
             cy += 5;
             
             g.text(font, "Music Provider:", cx, cy + 6, COL_TEXT);
@@ -363,10 +423,31 @@ public class SonggkaConfigScreen extends Screen {
         return y + 26;
     }
 
+    private int renderTimerSlider(GuiGraphicsExtractor g, net.minecraft.client.gui.Font font, int x, int y, int w, String label, float val, int mx, int my) {
+        g.text(font, label + String.format(": %.2fs", val), x, y + 2, COL_TEXT);
+        
+        int trackY = y + 14;
+        RenderUtils.fillRoundedRect(g, x, trackY, w, 4, 2, 0x55FFFFFF);
+        
+        float pct = (val - 1.0f) / 2.0f; // domain [1.0, 3.0] -> [0, 1]
+        pct = Math.max(0, Math.min(1, pct));
+        
+        RenderUtils.fillRoundedRect(g, x, trackY, (int)(w * pct), 4, 2, COL_ACCENT);
+        
+        int knobX = x + (int)(w * pct) - 4;
+        RenderUtils.fillRoundedRect(g, knobX, trackY - 3, 8, 10, 4, 0xFFFFFFFF);
+        
+        return y + 26;
+    }
+
+
+
     private void updateColorFromSliders() {
         int rgb = java.awt.Color.HSBtoRGB(selectedHue, selectedSat, selectedVal) & 0xFFFFFF;
         String hex = String.format("#%06X", rgb);
-        if (editingColor2 && ModConfig.INSTANCE.enableGradient) {
+        if (activeTab == 3) {
+            ModConfig.INSTANCE.slayerGlowColor = hex;
+        } else if (editingColor2 && ModConfig.INSTANCE.enableGradient) {
             ModConfig.INSTANCE.customHexColor2 = hex;
         } else {
             ModConfig.INSTANCE.customHexColor = hex;
@@ -389,13 +470,16 @@ public class SonggkaConfigScreen extends Screen {
             if (draggingSlider == 1) ModConfig.INSTANCE.playerSizeY = newVal;
             if (draggingSlider == 2) ModConfig.INSTANCE.playerSizeZ = newVal;
         } else if (draggingSlider == 3) {
-            selectedHue = Math.max(0, Math.min(1, (float)(mx - (cx + 6)) / (cw - 12)));
+            float newPct = (float)(mx - (cx + 6)) / (cw - 12);
+            selectedHue = Math.max(0, Math.min(1, newPct));
             updateColorFromSliders();
         } else if (draggingSlider == 4) {
-            selectedSat = Math.max(0, Math.min(1, (float)(mx - (cx + 6)) / (cw - 12)));
+            float newPct = (float)(mx - (cx + 6)) / (cw - 12);
+            selectedSat = Math.max(0, Math.min(1, newPct));
             updateColorFromSliders();
         } else if (draggingSlider == 5) {
-            selectedVal = Math.max(0, Math.min(1, (float)(mx - (cx + 6)) / (cw - 12)));
+            float newPct = (float)(mx - (cx + 6)) / (cw - 12);
+            selectedVal = Math.max(0, Math.min(1, newPct));
             updateColorFromSliders();
         }
 
@@ -411,12 +495,13 @@ public class SonggkaConfigScreen extends Screen {
         int py = (this.height - WIN_H) / 2;
         
         int tabY = py + 40;
-        String[] tabs = {"Commands", "Custom Player", "Dungeon", "Misc Settings"};
+        String[] tabs = {"Commands", "Custom Player", "Dungeon", "Slayer", "Misc Settings"};
         for (int i = 0; i < tabs.length; i++) {
             if (mx >= px && mx < px + SIDEBAR_W && my >= tabY && my < tabY + ROW_H) {
                 activeTab = i;
                 hexInputFocused = prefixInputFocused = suffixInputFocused = false;
                 providerDropdownOpen = false;
+                updateHSBFromConfig();
                 return true;
             }
             tabY += ROW_H + 4;
@@ -507,9 +592,9 @@ public class SonggkaConfigScreen extends Screen {
                     cy += bH + 6;
                 }
                 
-                if (mx >= cx + 6 && mx < cx + cw - 6 && my >= cy && my < cy + 18) { hexInputFocused = true; prefixInputFocused = false; suffixInputFocused = false; return true; } cy += 18;
-                
                 cy += 22 + 6; // color preview box (boxH = 22)
+                
+                if (mx >= cx + 6 && mx < cx + cw - 6 && my >= cy && my < cy + 18) { hexInputFocused = true; prefixInputFocused = false; suffixInputFocused = false; return true; } cy += 18;
                 
                 cy += 10;
                 int hueW = cw - 12;
@@ -570,22 +655,61 @@ public class SonggkaConfigScreen extends Screen {
                 cy += 4;
             }
 
-            if (mx >= cx && mx < cx + cw && my >= cy && my < cy + ROW_H) { 
+            int oldCy = cy;
+            cy += ROW_H;
+            
+            if (mx >= cx && mx < cx + cw && my >= oldCy && my < oldCy + ROW_H) { 
                 ModConfig.INSTANCE.enableLagTimeLost = !ModConfig.INSTANCE.enableLagTimeLost; 
                 ModConfig.INSTANCE.save(); 
                 return true; 
-            } cy += ROW_H;
-            
-            if (ModConfig.INSTANCE.enableLagTimeLost) {
-                int bx = cx + 6;
-                if (mx >= bx && mx < bx + cw - 12 && my >= cy && my < cy + 20) {
-                    Minecraft.getInstance().setScreen(new EditLagHudScreen(this));
-                    return true;
-                }
-                cy += 24;
             }
+
         } else if (activeTab == 3) {
-            if (mx >= cx && mx < cx + cw && my >= cy && my < cy + ROW_H) { ModConfig.INSTANCE.enableAutoUpdate = !ModConfig.INSTANCE.enableAutoUpdate; ModConfig.INSTANCE.save(); return true; } cy += ROW_H;
+            int hH = 20;
+            if (mx >= cx && mx < cx + cw && my >= cy && my < cy + hH) {
+                slayerCarryOpen = !slayerCarryOpen;
+                hexInputFocused = false;
+                return true;
+            }
+            cy += hH + 4;
+            
+            if (slayerCarryOpen) {
+                if (mx >= cx + 6 && mx < cx + cw - 6 && my >= cy && my < cy + ROW_H) { 
+                    ModConfig.INSTANCE.enableSlayerCarry = !ModConfig.INSTANCE.enableSlayerCarry; 
+                    ModConfig.INSTANCE.save(); 
+                    return true; 
+                } cy += ROW_H;
+                
+                if (mx >= cx + 6 && mx < cx + cw - 6 && my >= cy && my < cy + ROW_H) { 
+                    ModConfig.INSTANCE.enableBossSpawnHud = !ModConfig.INSTANCE.enableBossSpawnHud; 
+                    ModConfig.INSTANCE.save(); 
+                    return true; 
+                } cy += ROW_H;
+                
+                if (mx >= cx + 6 && mx < cx + cw - 6 && my >= cy && my < cy + ROW_H) { 
+                    ModConfig.INSTANCE.autoSendBossCoords = !ModConfig.INSTANCE.autoSendBossCoords; 
+                    ModConfig.INSTANCE.save(); 
+                    return true; 
+                } cy += ROW_H;
+                
+                cy += 46;
+                
+                cy += 22 + 6; // color preview box
+                
+                if (mx >= cx + 12 && mx < cx + cw - 12 && my >= cy && my < cy + 18) { hexInputFocused = true; prefixInputFocused = suffixInputFocused = false; return true; } cy += 18;
+                
+                cy += 10;
+                int hueW = cw - 24;
+                if (mx >= cx + 12 && mx < cx + 12 + hueW && my >= cy && my < cy + 10) { draggingSlider = 3; updateColorFromSliders(); return true; } cy += 12;
+                
+                cy += 10;
+                if (mx >= cx + 12 && mx < cx + 12 + hueW && my >= cy && my < cy + 10) { draggingSlider = 4; updateColorFromSliders(); return true; } cy += 12;
+                
+                cy += 10;
+                if (mx >= cx + 12 && mx < cx + 12 + hueW && my >= cy && my < cy + 10) { draggingSlider = 5; updateColorFromSliders(); return true; } cy += 14;
+            }
+        } else if (activeTab == 4) {
+            if (mx >= cx && mx < cx + cw && my >= cy && my < cy + ROW_H) { ModConfig.INSTANCE.enableUpdateCheck = !ModConfig.INSTANCE.enableUpdateCheck; ModConfig.INSTANCE.save(); return true; } cy += ROW_H;
             cy += 5;
             
             int bx = cx + 90;
@@ -621,18 +745,21 @@ public class SonggkaConfigScreen extends Screen {
     public boolean charTyped(net.minecraft.client.input.CharacterEvent event) {
         char chr = (char) event.codepoint();
         if (prefixInputFocused && chr >= 32 && chr <= 126) {
-            ModConfig.INSTANCE.customPrefix += chr; ModConfig.INSTANCE.save(); return true;
+            if (ModConfig.INSTANCE.customPrefix.length() < 32) ModConfig.INSTANCE.customPrefix += chr; 
+            ModConfig.INSTANCE.save(); return true;
         } else if (suffixInputFocused && chr >= 32 && chr <= 126) {
-            ModConfig.INSTANCE.customSuffix += chr; ModConfig.INSTANCE.save(); return true;
+            if (ModConfig.INSTANCE.customSuffix.length() < 32) ModConfig.INSTANCE.customSuffix += chr; 
+            ModConfig.INSTANCE.save(); return true;
         } else if (hexInputFocused) {
-            String cur = editingColor2 && ModConfig.INSTANCE.enableGradient ? ModConfig.INSTANCE.customHexColor2 : ModConfig.INSTANCE.customHexColor;
+            String cur = (activeTab == 3) ? ModConfig.INSTANCE.slayerGlowColor : (editingColor2 && ModConfig.INSTANCE.enableGradient ? ModConfig.INSTANCE.customHexColor2 : ModConfig.INSTANCE.customHexColor);
             if (cur == null || !cur.startsWith("#")) cur = "#";
             char c = Character.toUpperCase(chr);
             if (c == '#' && !cur.startsWith("#")) cur = "#" + cur;
             else if ((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F')) {
                 if (cur.length() < 7) cur = cur + c;
             }
-            if (editingColor2 && ModConfig.INSTANCE.enableGradient) ModConfig.INSTANCE.customHexColor2 = cur;
+            if (activeTab == 3) ModConfig.INSTANCE.slayerGlowColor = cur;
+            else if (editingColor2 && ModConfig.INSTANCE.enableGradient) ModConfig.INSTANCE.customHexColor2 = cur;
             else ModConfig.INSTANCE.customHexColor = cur;
             updateHSBFromConfig();
             ModConfig.INSTANCE.save();
@@ -652,10 +779,11 @@ public class SonggkaConfigScreen extends Screen {
                 ModConfig.INSTANCE.customSuffix = ModConfig.INSTANCE.customSuffix.substring(0, ModConfig.INSTANCE.customSuffix.length() - 1);
                 ModConfig.INSTANCE.save(); return true;
             } else if (hexInputFocused) {
-                String cur = editingColor2 && ModConfig.INSTANCE.enableGradient ? ModConfig.INSTANCE.customHexColor2 : ModConfig.INSTANCE.customHexColor;
+                String cur = (activeTab == 3) ? ModConfig.INSTANCE.slayerGlowColor : (editingColor2 && ModConfig.INSTANCE.enableGradient ? ModConfig.INSTANCE.customHexColor2 : ModConfig.INSTANCE.customHexColor);
                 if (cur != null && cur.length() > 1) {
                     cur = cur.substring(0, cur.length() - 1);
-                    if (editingColor2 && ModConfig.INSTANCE.enableGradient) ModConfig.INSTANCE.customHexColor2 = cur;
+                    if (activeTab == 3) ModConfig.INSTANCE.slayerGlowColor = cur;
+                    else if (editingColor2 && ModConfig.INSTANCE.enableGradient) ModConfig.INSTANCE.customHexColor2 = cur;
                     else ModConfig.INSTANCE.customHexColor = cur;
                     updateHSBFromConfig();
                     ModConfig.INSTANCE.save();

@@ -13,12 +13,9 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.Minecraft;
 import com.songgka.client.features.SkyblockDetector;
 import com.songgka.client.features.GhostBlockManager;
-import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
-import net.minecraft.client.KeyMapping;
-import net.minecraft.core.BlockPos;
-import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.HitResult;
+
 import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -34,37 +31,38 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.CompletableFuture;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class SonggkaClient implements ClientModInitializer {
 
-	public static final String MOD_VERSION = "1.5.0";
+	public static final String MOD_ID = "songgka";
+	public static final String MOD_VERSION = "1.6.1";
 	private static final String APP_ID = "songkkaa";
+	private static final Logger LOGGER = LoggerFactory.getLogger("songkkaa");
 
-	// Anti-spam state
 	private static long lastRequestTime = 0;
 	private static volatile boolean isPairingActive = false;
 	public static String currentSongText = null;
 
-	// Keybinds for GhostBlocks removed to bake configuration into the mod
-
 	@Override
 	public void onInitializeClient() {
-		// Keybinds registration removed
-
+		LOGGER.info("Initializing Songgka Client Mod " + MOD_VERSION);
+		
+		com.songgka.client.update.UpdateManager.checkForUpdates();
 		ModConfig.load();
 		com.songgka.client.color.NameColorManager.init();
-		com.songgka.client.update.UpdateManager.checkForUpdates();
 		com.songgka.client.features.GhostBlockManager.init();
 
 		ClientTickEvents.END_CLIENT_TICK.register(mc -> {
 			SkyblockDetector.onClientTick(mc);
 			com.songgka.client.features.DungeonLagTracker.onClientTick();
-			
-			// GhostBlock keybind processing removed
+			com.songgka.client.features.SlayerCarryManager.onClientTick(mc);
 		});
 
 		ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
 			com.songgka.client.color.NameColorManager.syncLocalPlayerColor();
+			com.songgka.client.update.UpdateManager.checkForUpdates();
 		});
 
 		ClientSendMessageEvents.CHAT.register((message) -> {
@@ -73,9 +71,7 @@ public class SonggkaClient implements ClientModInitializer {
 			Minecraft mc = Minecraft.getInstance();
 			boolean isHypixel = mc.getCurrentServer() != null && mc.getCurrentServer().ip != null && mc.getCurrentServer().ip.toLowerCase().contains("hypixel");
 			
-			// If on Hypixel and using a toggled chat without a slash (e.g. just typing "!meow"),
-			// we wait for the server to echo the message back (Party > , Guild > ) so we can accurately
-			// detect the channel. If they use a slash (e.g. "/pc !meow") or are in Singleplayer, we process it now.
+
 			if (isHypixel && !message.startsWith("/")) {
 				return;
 			}
@@ -92,6 +88,20 @@ public class SonggkaClient implements ClientModInitializer {
 		});
 
 		ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> {
+			com.mojang.brigadier.suggestion.SuggestionProvider<net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource> playerSuggestor = (context, builder) -> {
+				Minecraft mc = Minecraft.getInstance();
+				if (mc.level != null) {
+					String remaining = builder.getRemaining().toLowerCase();
+					for (net.minecraft.world.entity.player.Player player : mc.level.players()) {
+						String name = player.getName().getString();
+						if (name != null && name.toLowerCase().startsWith(remaining)) {
+							builder.suggest(name);
+						}
+					}
+				}
+				return builder.buildFuture();
+			};
+
 			dispatcher.register(ClientCommands.literal("songkkaa")
 				.executes(context -> {
 					Minecraft mc = Minecraft.getInstance();
@@ -105,20 +115,55 @@ public class SonggkaClient implements ClientModInitializer {
 						return 1;
 					})
 				)
+				.then(ClientCommands.literal("carry")
+					.then(ClientCommands.argument("player", StringArgumentType.string()).suggests(playerSuggestor)
+						.then(ClientCommands.argument("amount", IntegerArgumentType.integer(1))
+							.executes(context -> {
+								if (!ModConfig.INSTANCE.enableSlayerCarry) {
+									sendLocalChatMessage("§c[CarryTracker] Slayer Carry feature is disabled in config!");
+									return 0;
+								}
+								String player = StringArgumentType.getString(context, "player");
+								int amount = IntegerArgumentType.getInteger(context, "amount");
+								com.songgka.client.features.SlayerCarryManager.setTrackedPlayer(player, amount);
+								return 1;
+							})
+						)
+					)
+				)
+				.then(ClientCommands.literal("stopcarry")
+					.executes(context -> {
+						com.songgka.client.features.SlayerCarryManager.stopTracking();
+						return 1;
+					})
+					.then(ClientCommands.argument("player", StringArgumentType.string()).suggests(playerSuggestor)
+						.executes(context -> {
+							String player = StringArgumentType.getString(context, "player");
+							com.songgka.client.features.SlayerCarryManager.stopTrackingPlayer(player);
+							return 1;
+						})
+					)
+				)
 			);
 		});
 
 		ClientReceiveMessageEvents.MODIFY_GAME.register((message, overlay) -> {
 			if (overlay) return message;
+			
+			String text = message.getString();
+			if (text != null && !text.contains("[Songkkaa]")) {
+
+			}
+			
 			return com.songgka.client.color.NameColorManager.colorizeText(message, true);
 		});
 
 		ClientReceiveMessageEvents.GAME.register((message, overlay) -> {
 			String text = message.getString();
-			if (!ModConfig.INSTANCE.enableSong) return;
 			if (text == null || text.contains("[Songkkaa]")) return;
 
-			// Normalize non-breaking spaces and lower-case text
+			if (!ModConfig.INSTANCE.enableSong) return;
+
 			String lower = text.replace('\u00A0', ' ').toLowerCase().trim();
 			if (lower.contains("!song")) {
 				String prefix = getChatPrefix(lower);
@@ -132,6 +177,20 @@ public class SonggkaClient implements ClientModInitializer {
 			} else {
 				checkFunCommands(lower, text);
 			}
+		});
+
+		ClientReceiveMessageEvents.ALLOW_GAME.register((message, overlay) -> {
+			String text = message.getString();
+			if (text != null && !text.contains("[Songkkaa]")) {
+			}
+			return true;
+		});
+
+		ClientReceiveMessageEvents.ALLOW_CHAT.register((message, signedMessage, sender, params, receptionTimestamp) -> {
+			String text = message.getString();
+			if (text != null && !text.contains("[Songkkaa]")) {
+			}
+			return true;
 		});
 
 
@@ -319,11 +378,7 @@ public class SonggkaClient implements ClientModInitializer {
 		return null;
 	}
 
-	public static void handleOutgoingChatMessage(String message) {
-	}
 
-	public static void handleOutgoingCommand(String command) {
-	}
 
 	private static void saveToken(String token) {
 		ModConfig.INSTANCE.authToken = token;
@@ -348,8 +403,6 @@ public class SonggkaClient implements ClientModInitializer {
 
 		CompletableFuture.runAsync(() -> {
 			try {
-				Thread.sleep(600);
-
 				// 1. Try Windows System Media Session first (Works 100% natively for YTM, Deezer, Spotify, Web, etc.)
 				String winMediaSong = fetchWindowsMediaSessionSong();
 				if (winMediaSong != null && !winMediaSong.trim().isEmpty()) {
@@ -584,7 +637,6 @@ public class SonggkaClient implements ClientModInitializer {
 			}
 		} catch (Exception ignored) {}
 
-		// Fallback to Windows Media Session
 		String winMediaSong = fetchWindowsMediaSessionSong();
 		if (winMediaSong != null && !winMediaSong.trim().isEmpty()) {
 			sendWinMediaSongToChat(winMediaSong, chatPrefix);
@@ -612,11 +664,15 @@ public class SonggkaClient implements ClientModInitializer {
 	}
 
 	public static void sendLocalChatMessage(String message) {
+		sendLocalChatMessage(net.minecraft.network.chat.Component.literal(message));
+	}
+
+	public static void sendLocalChatMessage(net.minecraft.network.chat.Component component) {
 		Minecraft mc = Minecraft.getInstance();
 		mc.execute(() -> {
 			var player = mc.player;
 			if (player != null) {
-				player.sendSystemMessage(net.minecraft.network.chat.Component.literal(message));
+				player.sendSystemMessage(component);
 			}
 		});
 	}
@@ -648,35 +704,5 @@ public class SonggkaClient implements ClientModInitializer {
 		return sb.toString();
 	}
 
-	private net.minecraft.world.phys.HitResult performGhostBlockRaycast(Minecraft mc) {
-		if (mc.player == null || mc.level == null) return mc.hitResult;
-		
-		double reach = mc.player.blockInteractionRange();
-		net.minecraft.world.phys.Vec3 start = mc.player.getEyePosition(1.0F);
-		net.minecraft.world.phys.Vec3 look = mc.player.getViewVector(1.0F);
-		net.minecraft.world.phys.Vec3 end = start.add(look.x * reach, look.y * reach, look.z * reach);
-		
-		net.minecraft.world.level.ClipContext contextOutline = new net.minecraft.world.level.ClipContext(
-			start, end, 
-			net.minecraft.world.level.ClipContext.Block.OUTLINE, 
-			net.minecraft.world.level.ClipContext.Fluid.NONE, 
-			mc.player
-		);
-		net.minecraft.world.phys.BlockHitResult hitOutline = mc.level.clip(contextOutline);
-		
-		net.minecraft.world.level.ClipContext contextCollision = new net.minecraft.world.level.ClipContext(
-			start, end, 
-			net.minecraft.world.level.ClipContext.Block.COLLIDER, 
-			net.minecraft.world.level.ClipContext.Fluid.NONE, 
-			mc.player
-		);
-		net.minecraft.world.phys.BlockHitResult hitCollision = mc.level.clip(contextCollision);
-		
-		if (hitOutline.getType() == net.minecraft.world.phys.HitResult.Type.MISS) return hitCollision;
-		if (hitCollision.getType() == net.minecraft.world.phys.HitResult.Type.MISS) return hitOutline;
-		
-		double distOutline = hitOutline.getLocation().distanceToSqr(start);
-		double distCollision = hitCollision.getLocation().distanceToSqr(start);
-		return distCollision < distOutline ? hitCollision : hitOutline;
-	}
+
 }

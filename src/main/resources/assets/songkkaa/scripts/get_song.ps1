@@ -69,7 +69,7 @@ try {
                 if ($provider -eq "Deezer") {
                     if ($name -eq "deezer" -or $title -like "* - Deezer*") { $isProcMatch = $true }
                 } elseif ($provider -eq "YTM" -or $provider -eq "YouTube Music") {
-                    if ($name -eq "youtubemusic" -or $title -like "* - YouTube Music*") { $isProcMatch = $true }
+                    if ($name -like "*youtubemusic*" -or $name -like "*youtube-music*" -or $name -like "*youtube music*" -or $title -like "* - YouTube Music*") { $isProcMatch = $true }
                 } elseif ($provider -eq "Spotify") {
                     if ($name -eq "spotify" -or $title -like "* - Spotify*") { $isProcMatch = $true }
                 } else {
@@ -78,7 +78,7 @@ try {
 
                 if ($isProcMatch) {
                     $clean = $title -replace ' - Deezer$', '' -replace ' - YouTube Music$', '' -replace ' - Spotify$', ''
-                    if ($clean -and $clean.Trim() -ne "" -and $clean -ne "Deezer" -and $clean -ne "YouTube Music" -and $clean -ne "Spotify") {
+                    if ($clean -and $clean.Trim() -ne "" -and $clean -ne "Deezer" -and $clean -ne "YouTube Music" -and $clean -ne "Spotify" -and $clean -notlike "*YouTube Music Desktop App*") {
                         Write-Output $clean
                         exit 0
                     }

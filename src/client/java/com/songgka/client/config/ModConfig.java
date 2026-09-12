@@ -50,10 +50,19 @@ public class ModConfig {
 	public int lagHudX = 10;
 	public int lagHudY = 10;
 	public float lagHudScale = 1.0f;
-	public boolean enableAutoUpdate = true;
+	public boolean enableUpdateCheck = true;
 	public String customHexColor = "#FF55AA"; // couleur Hex personnalisée (ex: #FF55AA)
 	public String customHexColor2 = "#55FFFF"; // deuxième couleur pour le dégradé
 	public boolean enableGradient = false; // activer le dégradé à 2 couleurs
+	public boolean enableSlayerCarry = true;
+	public boolean enableBossSpawnHud = true;
+	public String slayerGlowColor = "#FF55AA";
+	public int bossHudX = 100;
+	public int bossHudY = 50;
+	public float bossHudScale = 2.0f;
+	public boolean autoSendBossCoords = false;
+
+
 	public static void load() {
 		try {
 			if (Files.exists(CONFIG_FILE)) {
@@ -61,6 +70,7 @@ public class ModConfig {
 				ModConfig loaded = GSON.fromJson(json, ModConfig.class);
 				if (loaded != null) {
 					INSTANCE = loaded;
+
 				}
 				INSTANCE.save();
 			} else {

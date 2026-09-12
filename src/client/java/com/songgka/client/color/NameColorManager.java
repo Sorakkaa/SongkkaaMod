@@ -208,6 +208,10 @@ public class NameColorManager {
             if (rawText != null && !rawText.isEmpty()) {
                 String text = stripMiniMessageTags(rawText);
                 
+                if (text.contains("http://") || text.contains("https://")) {
+                    return component;
+                }
+                
                 if (!text.equals(rawText)) {
                     selfChanged = true;
                     newSelf = net.minecraft.network.chat.Component.literal(text).withStyle(component.getStyle());
@@ -241,7 +245,7 @@ public class NameColorManager {
                     if (idx != -1) {
                         String colorCode = nameToColor.get(nameLower);
                         var mc = Minecraft.getInstance();
-                        boolean isSorakkaa = "sorakkaa".equalsIgnoreCase(nameLower) || "songkkaa".equalsIgnoreCase(nameLower);
+                        boolean isSorakkaa = "sorakkaa".equalsIgnoreCase(nameLower);
                         boolean isMairuy = "mairuy".equalsIgnoreCase(nameLower);
                         if (colorCode != null && !colorCode.isEmpty()) {
                             selfChanged = true;

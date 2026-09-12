@@ -22,12 +22,15 @@ import java.util.concurrent.CompletableFuture;
 public class UpdateManager {
     private static final Logger LOGGER = LoggerFactory.getLogger("Songgka-Updater");
 
-    private static final String UPDATE_URL = "https://jsonblob.com/api/jsonBlob/019fbcd2-f85d-7239-a3e7-679dd04b6c37"; 
+    private static final String UPDATE_URL = "https://api.github.com/repos/Sorakkaa/SongkkaaMod/releases/latest"; 
     
-    public static volatile boolean updateReady = false;
-    public static String downloadedVersion = null;
+
+    private static boolean hasCheckedForUpdates = false;
 
     public static void checkForUpdates() {
+        if (!com.songgka.client.config.ModConfig.INSTANCE.enableUpdateCheck) return;
+        if (hasCheckedForUpdates) return;
+        hasCheckedForUpdates = true;
         CompletableFuture.runAsync(() -> {
             try {
                 LOGGER.info("Checking for Songgka updates...");
@@ -47,17 +50,53 @@ public class UpdateManager {
                     }
 
                     JsonObject json = JsonParser.parseString(sb.toString()).getAsJsonObject();
-                    if (json.has("latest_version") && json.has("download_url")) {
-                        String latestVersion = json.get("latest_version").getAsString();
-                        String downloadUrl = json.get("download_url").getAsString();
+                    if (json.has("tag_name") && json.has("assets")) {
+                        String latestVersion = json.get("tag_name").getAsString();
+                        // Usually tags have a 'v' prefix like 'v1.6.0'
+                        if (latestVersion.startsWith("v") || latestVersion.startsWith("V")) {
+                            latestVersion = latestVersion.substring(1);
+                        }
 
                         if (isNewerVersion(SonggkaClient.MOD_VERSION, latestVersion)) {
-                            LOGGER.info("New version found: " + latestVersion + ". Downloading...");
-                            downloadUpdate(downloadUrl, latestVersion);
+                            LOGGER.info("New version found: " + latestVersion + ". Looking for assets...");
+                            
+                            var assets = json.getAsJsonArray("assets");
+                            if (assets.size() > 0) {
+                                JsonObject asset = assets.get(0).getAsJsonObject();
+                                if (asset.has("browser_download_url")) {
+                                    String downloadUrl = asset.get("browser_download_url").getAsString();
+                                    LOGGER.info("Found download URL: " + downloadUrl);
+
+                                    net.minecraft.network.chat.Style prefixStyle = net.minecraft.network.chat.Style.EMPTY
+                                        .withColor(net.minecraft.network.chat.TextColor.fromRgb(0xFFC6F9))
+                                        .withBold(true);
+
+                                    net.minecraft.network.chat.MutableComponent prefix = net.minecraft.network.chat.Component.literal("[Song")
+                                        .append(net.minecraft.network.chat.Component.literal("kkaa]\u00A0"))
+                                        .withStyle(prefixStyle);
+
+                                    net.minecraft.network.chat.MutableComponent msg1 = net.minecraft.network.chat.Component.literal("")
+                                        .append(prefix)
+                                        .append(net.minecraft.network.chat.Component.literal("A new update (v" + latestVersion + ") is available!").withStyle(net.minecraft.ChatFormatting.GREEN));
+
+                                    net.minecraft.network.chat.MutableComponent msg2 = net.minecraft.network.chat.Component.literal("")
+                                        .append(prefix)
+                                        .append(net.minecraft.network.chat.Component.literal(downloadUrl).withStyle(style -> style.withColor(net.minecraft.ChatFormatting.GREEN).withUnderlined(true)));
+
+                                    while (net.minecraft.client.Minecraft.getInstance().player == null) {
+                                        try { Thread.sleep(500); } catch (Exception ignored) {}
+                                    }
+
+                                    SonggkaClient.sendLocalChatMessage(msg1);
+                                    SonggkaClient.sendLocalChatMessage(msg2);
+                                }
+                            }
                         } else {
                             LOGGER.info("Songgka is up to date (v" + SonggkaClient.MOD_VERSION + ")");
                         }
                     }
+                } else {
+                    LOGGER.error("Failed to check for updates, HTTP response code: " + conn.getResponseCode());
                 }
             } catch (Exception e) {
                 LOGGER.error("Failed to check for updates", e);
@@ -85,32 +124,4 @@ public class UpdateManager {
         }
     }
 
-    private static void downloadUpdate(String fileUrl, String newVersion) {
-        try {
-            URL url = URI.create(fileUrl).toURL();
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("GET");
-            conn.setConnectTimeout(10000);
-            conn.setReadTimeout(30000);
-            
-            // Handle redirects if downloading from GitHub etc
-            conn.setInstanceFollowRedirects(true);
-
-            if (conn.getResponseCode() == 200 || conn.getResponseCode() == 302) {
-                Path modsDir = FabricLoader.getInstance().getGameDir().resolve("mods");
-                Path downloadDest = modsDir.resolve("songgka-" + newVersion + ".jar");
-
-                try (InputStream in = conn.getInputStream()) {
-                    Files.copy(in, downloadDest, StandardCopyOption.REPLACE_EXISTING);
-                    LOGGER.info("Successfully downloaded update to " + downloadDest.toString());
-                    downloadedVersion = newVersion;
-                    updateReady = true;
-                }
-            } else {
-                LOGGER.error("Failed to download update, HTTP response code: " + conn.getResponseCode());
-            }
-        } catch (Exception e) {
-            LOGGER.error("Error downloading update", e);
-        }
-    }
 }
