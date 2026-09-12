@@ -1,0 +1,8 @@
+
+import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
+public class Test {
+    public static void test() {
+        ClientReceiveMessageEvents.CHAT.register((message, signedMessage, sender, params, receptionTimestamp) -> {});
+    }
+}
+
